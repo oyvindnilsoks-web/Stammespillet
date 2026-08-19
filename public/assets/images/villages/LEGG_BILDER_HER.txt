@@ -1,0 +1,2 @@
+Legg landsbybilder (per stamme) her, brukt i scener når spilleren ankommer et sted.
+Filnavn skal matche "image"-feltet i scene-JSON-filen, f.eks. villages/nordmyr.png

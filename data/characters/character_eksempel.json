@@ -1,0 +1,11 @@
+{
+  "id": "char_001",
+  "name": "Erik Nordmyr",
+  "tribe": "tribe_nordmyr",
+  "role": "Speider",
+  "strengths": ["rask", "god orienteringssans"],
+  "weaknesses": ["lite fysisk styrke"],
+  "goal": "Finne den tapte kartrullen til stammen",
+  "description": "En ung speider med lyst hår og et grønt sjal, alltid med en kikkert om halsen.",
+  "image": "characters/erik_nordmyr.png"
+}

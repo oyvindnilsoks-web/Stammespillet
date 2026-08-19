@@ -1,0 +1,8 @@
+Legg lydfiler her (royaltyfrie / CC-lisensierte, skaffes av Øyvind):
+
+- background.mp3   -> generelt bakgrunnsspor, spilles i karaktervalg og scener
+                      uten en egen stamme-spesifikk fil
+- credits.mp3       -> spilles på rulletekst-skjermen (litt større/mer episk spor)
+- tribes/<tribe_id>.mp3 -> valgfritt, eget spor per stamme (f.eks. tribes/tribe_nordmyr.mp3),
+                      spilles av når spilleren er i en scene knyttet til den stammen.
+                      Faller automatisk tilbake til background.mp3 hvis filen mangler.

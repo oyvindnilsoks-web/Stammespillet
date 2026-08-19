@@ -1,0 +1,20 @@
+{
+  "id": "scene_001",
+  "title": "Ankomst til Nordmyr",
+  "tribe": "tribe_nordmyr",
+  "text": "Du våkner i utkanten av landsbyen Nordmyr. Tåken ligger tett over jordene, og du kan høre stemmer i det fjerne...",
+  "image": "villages/nordmyr.png",
+  "choices": [
+    {
+      "text": "Gå mot stemmene",
+      "next_scene": "scene_002",
+      "consequences": { "mot": 1 }
+    },
+    {
+      "text": "Gjem deg og observer",
+      "next_scene": "scene_003",
+      "consequences": { "list": 1 }
+    }
+  ],
+  "is_ending": false
+}

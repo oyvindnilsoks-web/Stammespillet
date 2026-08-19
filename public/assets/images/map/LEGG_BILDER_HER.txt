@@ -1,0 +1,2 @@
+Legg det overordnede verdenskartet og eventuelle regionkart her.
+Filnavn skal matche "image"-feltet i tribe-JSON-filen, f.eks. map/nordmyr_landsby.png

@@ -1,0 +1,2 @@
+Legg Midjourney-bildene av elevkarakterene her.
+Filnavn skal matche "image"-feltet i character-JSON-filen, f.eks. characters/erik_nordmyr.png

@@ -1,0 +1,15 @@
+{
+  "id": "",
+  "title": "",
+  "tribe": null,
+  "text": "",
+  "image": null,
+  "choices": [
+    {
+      "text": "",
+      "next_scene": "",
+      "consequences": {}
+    }
+  ],
+  "is_ending": false
+}

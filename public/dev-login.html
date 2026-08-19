@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stammespillet - testinnlogging</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <main class="login-box">
+    <h1>Testinnlogging</h1>
+    <p class="error">
+      Feide er ikke koblet til ennå (venter på oppsett fra Steinkjer kommune).
+      Denne siden er kun for å teste spillmotoren, og virker bare når
+      <code>ENABLE_DEV_LOGIN=true</code> er satt på serveren.
+    </p>
+    <form id="dev-login-form">
+      <label for="testId">Velg en testbruker-id</label>
+      <input id="testId" name="testId" placeholder="f.eks. elev1" required />
+      <button type="submit" class="choice-btn">Logg inn (test)</button>
+    </form>
+    <p id="dev-login-error" class="error" hidden></p>
+  </main>
+  <script type="module">
+    import { devLogin } from '/js/api.js';
+    const form = document.getElementById('dev-login-form');
+    const errorEl = document.getElementById('dev-login-error');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorEl.hidden = true;
+      try {
+        await devLogin(document.getElementById('testId').value);
+        window.location.href = '/';
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.hidden = false;
+      }
+    });
+  </script>
+</body>
+</html>

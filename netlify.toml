@@ -1,0 +1,44 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+  command = "true"
+
+[functions]
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/api/auth/login"
+  to = "/.netlify/functions/auth-login"
+  status = 200
+
+[[redirects]]
+  from = "/api/auth/callback"
+  to = "/.netlify/functions/auth-callback"
+  status = 200
+
+[[redirects]]
+  from = "/api/auth/logout"
+  to = "/.netlify/functions/auth-logout"
+  status = 200
+
+[[redirects]]
+  from = "/api/auth/dev-login"
+  to = "/.netlify/functions/auth-dev-login"
+  status = 200
+
+[[redirects]]
+  from = "/api/session"
+  to = "/.netlify/functions/session"
+  status = 200
+
+[[redirects]]
+  from = "/api/progress"
+  to = "/.netlify/functions/progress"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

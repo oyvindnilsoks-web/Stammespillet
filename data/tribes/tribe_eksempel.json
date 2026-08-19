@@ -1,0 +1,10 @@
+{
+  "id": "tribe_nordmyr",
+  "name": "Nordmyr-stammen",
+  "territory": { "map_x": 120, "map_y": 340, "region_name": "De tåkete myrene" },
+  "resource": "Myrjern (sjeldent metall brukt til verktøy og våpen)",
+  "culture": "Speiderfolk som lever av jakt og lever i pakt med tåken",
+  "relations": { "tribe_solvang": "alliert", "tribe_kraghol": "spent" },
+  "image": "map/nordmyr_landsby.png",
+  "characters": ["char_001"]
+}
