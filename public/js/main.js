@@ -4,6 +4,7 @@ import { renderCharacterSelect, renderScene, findEntryScene, applyConsequences }
 import { renderLexicon } from './lexicon.js';
 import { renderGallery } from './gallery.js';
 import { renderCredits } from './credits.js';
+import { renderIntro } from './intro.js';
 import { playForScene, playCredits, renderAudioControl } from './audio.js';
 
 const app = document.getElementById('app');
@@ -22,12 +23,14 @@ function renderNav(authenticated, displayTag) {
     <button id="nav-play">Spill</button>
     <button id="nav-lexicon">Stammeleksikon</button>
     <button id="nav-gallery">Galleri</button>
+    <button id="nav-intro">Se introen</button>
     <span id="nav-audio"></span>
     <a id="nav-logout" href="${logoutUrl()}">Logg ut</a>
   `;
   document.getElementById('nav-play').addEventListener('click', showGameOrSelect);
   document.getElementById('nav-lexicon').addEventListener('click', showLexicon);
   document.getElementById('nav-gallery').addEventListener('click', showGallery);
+  document.getElementById('nav-intro').addEventListener('click', () => showIntro(showGameOrSelect));
   renderAudioControl(document.getElementById('nav-audio'));
 }
 
@@ -55,6 +58,16 @@ function showGallery() {
 function showCredits() {
   playCredits();
   renderCredits(app, content, showGameOrSelect);
+}
+
+function showIntro(onDone) {
+  renderIntro(app, onDone);
+}
+
+async function markIntroSeenAndContinue() {
+  state = { ...state, flags: { ...state.flags, seen_intro: true } };
+  await saveProgress(state);
+  await showGameOrSelect();
 }
 
 async function showGameOrSelect() {
@@ -97,8 +110,13 @@ async function onChoice(choice) {
   }
 
   if (choice === null) {
-    // restart after an ending
-    state = { chosen_character: null, current_scene: null, flags: {}, visited_tribes: [] };
+    // restart after an ending - keep seen_intro so the video isn't forced again
+    state = {
+      chosen_character: null,
+      current_scene: null,
+      flags: state.flags?.seen_intro ? { seen_intro: true } : {},
+      visited_tribes: [],
+    };
     await saveProgress(state);
     playForScene(null);
     renderCharacterSelect(app, content, onChooseCharacter);
@@ -143,6 +161,11 @@ async function init() {
         visited_tribes: progress.visited_tribes || [],
       }
     : { chosen_character: null, current_scene: null, flags: {}, visited_tribes: [] };
+
+  if (!state.flags?.seen_intro) {
+    showIntro(markIntroSeenAndContinue);
+    return;
+  }
 
   await showGameOrSelect();
 }

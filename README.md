@@ -55,6 +55,14 @@ produksjon ennå.** Se punktene under.
   mute/volum-kontroll i toppmenyen. Ren klient-tilstand, ingenting lagres
   i Supabase. **Selve lydfilene er ikke lagt inn ennå** – se
   `public/assets/audio/LEGG_LYD_HER.txt`.
+- **Introvideo** (`public/js/intro.js`): vises automatisk første gang en
+  elev logger inn (før karaktervalg), og kan spilles av på nytt når som
+  helst via "Se introen" i menyen. "Sett som sett"-tilstanden lagres i
+  `progress.flags.seen_intro` – ingen databaseendring var nødvendig.
+  Bevares ved omspilling ("Spill igjen"), så videoen tvinges ikke fram
+  på nytt. Bygges inn via `youtube-nocookie.com` (unlisted YouTube-video,
+  ingen sporingscookies). **Video-ID-en er ikke lagt inn ennå** – se
+  `INTRO_VIDEO_ID` øverst i `intro.js`.
 
 ### Gjenstår
 1. **Deploy til produksjon** – blokkert av at Netlify-kontoen har nådd
@@ -71,6 +79,9 @@ produksjon ennå.** Se punktene under.
 4. **Lydfiler og kartlagerteam-navn** – legg ekte spor i
    `public/assets/audio/` og fyll inn navnene i `MAP_TEAM`/`CLASS_NAME`
    øverst i `public/js/credits.js`.
+5. **Introvideo-ID** – fyll inn `INTRO_VIDEO_ID` øverst i
+   `public/js/intro.js` når videoen er lastet opp som "unlisted" på
+   YouTube.
 
 ## Arkitektur
 
@@ -89,6 +100,7 @@ public/                    → statisk nettsted (HTML/CSS/vanilla JS, ingen buil
     game.js                     scene-rendering, valg, "entry scene"-logikk (kun plot='main'), consequences
     lexicon.js                  stammeleksikon-visning
     gallery.js                  galleri-visning (alle bilder, gruppert per stamme)
+    intro.js                    introvideo (YouTube unlisted, vises første gang, INTRO_VIDEO_ID fylles inn her)
     credits.js                  rulletekst ved is_ending (MAP_TEAM/CLASS_NAME fylles inn her)
     audio.js                    bakgrunnsmusikk + mute/volum-kontroll
     main.js                     app-oppstart / view-styring
