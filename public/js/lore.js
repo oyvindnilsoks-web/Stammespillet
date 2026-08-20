@@ -7,7 +7,7 @@ const DOCS = {
   bibel: {
     label: 'Lore-bibelen',
     url: '/docs/lore-bibel.md',
-    image: '/assets/images/lore/world_map.png',
+    image: '/assets/images/lore/world_map.jpg',
     demangle: false,
   },
   song: {
