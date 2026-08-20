@@ -14,8 +14,10 @@ function inline(text) {
 }
 
 // Some exported docs wrap every single line in a literal "# " (from a broken
-// doc-to-markdown export) and escape the real markdown inside it (\#, \*, \---).
-// This undoes both: strips the wrapper, then un-escapes the real markdown.
+// doc-to-markdown export). Sometimes the real markdown inside is escaped
+// (\#, \*, \---); sometimes it has been stripped entirely, leaving no
+// heading/emphasis markers at all. This undoes the wrapper and un-escapes
+// whatever markdown survived.
 function demangleLine(line) {
   let l = line;
   if (l.startsWith('# ')) l = l.slice(2);
@@ -23,11 +25,25 @@ function demangleLine(line) {
   return l.replace(/\\([\\`*_{}[\]()#+\-.!>~])/g, '$1');
 }
 
+// Heuristic for headings when the real markdown markers are gone (see above):
+// a short line with no trailing sentence punctuation and no leading quote
+// mark reads as a title ("I. The Crack", "The Deepest Shaft") rather than
+// dialogue or prose, which always end in ./,/!/?/quote in these documents.
+function looksLikeHeading(line) {
+  const t = line.trim();
+  if (!t || t.length > 60) return false;
+  if (/["'“.,;:!?]$/.test(t)) return false;
+  if (/^["'“]/.test(t)) return false;
+  if (t.split(/\s+/).length > 8) return false;
+  return true;
+}
+
 export function renderMarkdown(raw, { demangle = false } = {}) {
   const rawLines = raw.split('\n');
   const lines = demangle ? rawLines.map(demangleLine) : rawLines;
   let html = '';
   let i = 0;
+  let sawHeading = false;
 
   while (i < lines.length) {
     const line = lines[i].trimEnd();
@@ -72,6 +88,13 @@ export function renderMarkdown(raw, { demangle = false } = {}) {
         i++;
       }
       html += `<ul>${items.join('')}</ul>`;
+      continue;
+    }
+    if (demangle && looksLikeHeading(line)) {
+      const tag = sawHeading ? 'h2' : 'h1';
+      sawHeading = true;
+      html += `<${tag}>${inline(line)}</${tag}>`;
+      i++;
       continue;
     }
 

@@ -1,20 +1,20 @@
-# \# The Long Song
+# The Long Song
 
 # 
 
-# \*A foundational story for Stammespillet, built on the world described in the lore bible ("Utviskingen"). Written in English to match the game's production language. Clan names, place names, and the protagonist are invented for this story — the actual student groups will still name their own clans, and nothing here overrides what they create. Think of this as one true telling of how the five clans of the lore bible first learned what they had forgotten, following the five-act structure (the Crack, the Envoy, the Anchors, the Gathering, the Choice) and ending in the Rebuilding. Roughly 10,000 words.\*
+# A foundational story for Stammespillet, built on the world described in the lore bible ("Utviskingen"). Written in English to match the game's production language. Clan names, place names, and the protagonist are invented for this story — the actual student groups will still name their own clans, and nothing here overrides what they create. Think of this as one true telling of how the five clans of the lore bible first learned what they had forgotten, following the five-act structure (the Crack, the Envoy, the Anchors, the Gathering, the Choice) and ending in the Rebuilding. Roughly 10,000 words.
 
 # 
 
-# \---
+# 
 
 # 
 
-# \## I. The Crack
+# I. The Crack
 
 # 
 
-# Wren was eleven verses into the Long Song when her grandmother stopped her with two fingers against her collarbone — the old signal for \*wrong note, try again\* — and Wren realized she had sung the same line twice without noticing.
+# Wren was eleven verses into the Long Song when her grandmother stopped her with two fingers against her collarbone — the old signal for wrong note, try again — and Wren realized she had sung the same line twice without noticing.
 
 # 
 
@@ -46,7 +46,7 @@
 
 # 
 
-# "Your uncle," Tam said, out of breath. "Fenn. He's — Wren, come \*look.\*"
+# "Your uncle," Tam said, out of breath. "Fenn. He's — Wren, come look."
 
 # 
 
@@ -66,7 +66,7 @@
 
 # 
 
-# "That's what I'm telling you," Tam said. "There \*was\* a skiff. Five minutes ago. I saw it. Your uncle was in it. I waved at him."
+# "That's what I'm telling you," Tam said. "There was a skiff. Five minutes ago. I saw it. Your uncle was in it. I waved at him."
 
 # 
 
@@ -90,7 +90,7 @@
 
 # 
 
-# "\*Your husband,\* Aunt Mira."
+# "Your husband, Aunt Mira."
 
 # 
 
@@ -178,11 +178,11 @@
 
 # 
 
-# \---
+# 
 
 # 
 
-# \## II. The Envoy
+# II. The Envoy
 
 # 
 
@@ -202,7 +202,7 @@
 
 # 
 
-# "It's not meant to be a compliment. It's meant to be true." He finally looked at her, and in the dark his face had none of its usual easy humour in it. "Wren. Your uncle's boat didn't just sink. I saw the water where it had been. It didn't even \*ripple.\* I keep telling myself I imagined that part, and I know I didn't, and I don't want you finding out what it means without someone else standing next to you who also saw it."
+# "It's not meant to be a compliment. It's meant to be true." He finally looked at her, and in the dark his face had none of its usual easy humour in it. "Wren. Your uncle's boat didn't just sink. I saw the water where it had been. It didn't even ripple. I keep telling myself I imagined that part, and I know I didn't, and I don't want you finding out what it means without someone else standing next to you who also saw it."
 
 # 
 
@@ -282,7 +282,7 @@
 
 # 
 
-# Whole districts marked on the gate-keeper's toll-map didn't exist anymore — not ruined, the gate-keeper explained when Tam asked, just \*resettled elsewhere within the walls,\* in the careful bureaucratic phrase Vantor used for streets that had quietly stopped being streets. Nobody in the city seemed to find the phrase strange. That, more than anything else, told Wren how long this had been going on, and how practiced this particular clan had become at not looking directly at its own shrinking.
+# Whole districts marked on the gate-keeper's toll-map didn't exist anymore — not ruined, the gate-keeper explained when Tam asked, just resettled elsewhere within the walls, in the careful bureaucratic phrase Vantor used for streets that had quietly stopped being streets. Nobody in the city seemed to find the phrase strange. That, more than anything else, told Wren how long this had been going on, and how practiced this particular clan had become at not looking directly at its own shrinking.
 
 # 
 
@@ -290,7 +290,7 @@
 
 # 
 
-# "Talked to a fruit-seller," he said. "Asked her how long she'd had her stall in that spot. She said her whole life. Then I asked what used to be on the corner across from her, because there's clearly a gap there, foundations and nothing else, grass growing through the stones. She looked right at it and told me there'd never been anything on that corner. Wren, there were \*foundations.\* You don't get foundations from nothing."
+# "Talked to a fruit-seller," he said. "Asked her how long she'd had her stall in that spot. She said her whole life. Then I asked what used to be on the corner across from her, because there's clearly a gap there, foundations and nothing else, grass growing through the stones. She looked right at it and told me there'd never been anything on that corner. Wren, there were foundations. You don't get foundations from nothing."
 
 # 
 
@@ -334,7 +334,7 @@
 
 # 
 
-# "Doesn't matter," Idris said, too quickly. "It's not — it's not one person's fault. It's fear. Nobody wants to be the archivist who admits the Archive doesn't know something. We're the ones who are supposed to \*not forget.\*" He laughed, a short unhappy sound. "So instead we're starting to lie a little, here and there, in the margins, just to keep the shelves looking whole. I don't love it. I don't know how to stop it either."
+# "Doesn't matter," Idris said, too quickly. "It's not — it's not one person's fault. It's fear. Nobody wants to be the archivist who admits the Archive doesn't know something. We're the ones who are supposed to not forget." He laughed, a short unhappy sound. "So instead we're starting to lie a little, here and there, in the margins, just to keep the shelves looking whole. I don't love it. I don't know how to stop it either."
 
 # 
 
@@ -370,11 +370,11 @@
 
 # 
 
-# In one corner of the tin sheet, in a script so worn it took all three of them squinting together to be sure of it, was a single label, marking a spot near where the five clustered settlements sat: \*the First Stone.\*
+# In one corner of the tin sheet, in a script so worn it took all three of them squinting together to be sure of it, was a single label, marking a spot near where the five clustered settlements sat: the First Stone.
 
 # 
 
-# Wren felt something in her chest that she would later come to recognize as the particular ache of a verse of the Long Song surfacing in a place she had never expected to hear it — because the Long Song had a fragment, half-forgotten, that her own grandmother sang without ever explaining, a line about \*the stone that remembers before the song did, back when the five were one throat singing.\*
+# Wren felt something in her chest that she would later come to recognize as the particular ache of a verse of the Long Song surfacing in a place she had never expected to hear it — because the Long Song had a fragment, half-forgotten, that her own grandmother sang without ever explaining, a line about the stone that remembers before the song did, back when the five were one throat singing.
 
 # 
 
@@ -394,15 +394,15 @@
 
 # 
 
-# \---
+# 
 
 # 
 
-# \## III. The Anchors
+# III. The Anchors
 
 # 
 
-# \### The Deepest Shaft
+# The Deepest Shaft
 
 # 
 
@@ -438,7 +438,7 @@
 
 # 
 
-# "Come about something older than the dam," Wren said, and showed him the rubbing Idris had taken of the tin map's corner label. "\*The First Stone.\* Does that mean anything to you?"
+# "Come about something older than the dam," Wren said, and showed him the rubbing Idris had taken of the tin map's corner label. "The First Stone. Does that mean anything to you?"
 
 # 
 
@@ -446,7 +446,7 @@
 
 # 
 
-# "It means the one wall in this entire hall that has no writing on it," he said. "Which, in a hall where we carve everything, means everyone agreed three hundred years ago never to touch it. And it means the deepest shaft, which was sealed a hundred years back, and which the elders have never once explained the reason for — except that the inscription explaining it is the only inscription in Deephewn history that's ever been deliberately ground smooth. Not forgotten. \*Erased.\* On purpose. By our own hands." He looked at Wren with something that was almost relief at finally saying it aloud to someone who wasn't already bored of the argument. "I've been trying to get the elders to let me open the shaft again for a year. They keep saying it'll kill us. They won't say how they know that, since none of them remember why either."
+# "It means the one wall in this entire hall that has no writing on it," he said. "Which, in a hall where we carve everything, means everyone agreed three hundred years ago never to touch it. And it means the deepest shaft, which was sealed a hundred years back, and which the elders have never once explained the reason for — except that the inscription explaining it is the only inscription in Deephewn history that's ever been deliberately ground smooth. Not forgotten. Erased. On purpose. By our own hands." He looked at Wren with something that was almost relief at finally saying it aloud to someone who wasn't already bored of the argument. "I've been trying to get the elders to let me open the shaft again for a year. They keep saying it'll kill us. They won't say how they know that, since none of them remember why either."
 
 # 
 
@@ -486,7 +486,7 @@
 
 # 
 
-# "That's not just script," she said slowly. "That's notation. It's a \*tune.\* It's been carved like writing, but it's meant to be sung." She closed her eyes, and let the shape of the marks translate itself, haltingly, the way the oldest, strangest fragment of the Long Song always had — the one about \*the stone that remembers before the song did\* — and began, very quietly, to hum it.
+# "That's not just script," she said slowly. "That's notation. It's a tune. It's been carved like writing, but it's meant to be sung." She closed her eyes, and let the shape of the marks translate itself, haltingly, the way the oldest, strangest fragment of the Long Song always had — the one about the stone that remembers before the song did — and began, very quietly, to hum it.
 
 # 
 
@@ -498,7 +498,7 @@
 
 # 
 
-# \*We were one people, and we borrowed more than the world could spare, and when the reckoning came we did not have the courage to pay it together, so we tore ourselves into five so that no one of us would ever again be tempted to try to pay it, or steal it, alone.\*
+# We were one people, and we borrowed more than the world could spare, and when the reckoning came we did not have the courage to pay it together, so we tore ourselves into five so that no one of us would ever again be tempted to try to pay it, or steal it, alone.
 
 # 
 
@@ -514,7 +514,7 @@
 
 # 
 
-# \### The Ledger's Price
+# The Ledger's Price
 
 # 
 
@@ -522,7 +522,7 @@
 
 # 
 
-# Corvan was in a foul mood, hunched over his ledger by lamplight, and it took Wren only a moment to understand why: a knot of his own factors stood arguing in low, urgent voices near the mule pens, and the word \*Hollowkin\* came up twice before she'd even finished crossing the yard.
+# Corvan was in a foul mood, hunched over his ledger by lamplight, and it took Wren only a moment to understand why: a knot of his own factors stood arguing in low, urgent voices near the mule pens, and the word Hollowkin came up twice before she'd even finished crossing the yard.
 
 # 
 
@@ -562,7 +562,7 @@
 
 # 
 
-# \### The Empty Name
+# The Empty Name
 
 # 
 
@@ -626,15 +626,15 @@
 
 # 
 
-# \---
+# 
 
 # 
 
-# \## IV. The Gathering
+# IV. The Gathering
 
 # 
 
-# It should not have worked. Wren understood that even as she was doing it — that a fourteen-year-old singer's apprentice, however unusually gifted, had no business standing in the middle of the Crossing's central yard sending riders in five directions with a request that had not been made successfully in three hundred years: \*come, all five clans, to one place, at one time, and listen.\*
+# It should not have worked. Wren understood that even as she was doing it — that a fourteen-year-old singer's apprentice, however unusually gifted, had no business standing in the middle of the Crossing's central yard sending riders in five directions with a request that had not been made successfully in three hundred years: come, all five clans, to one place, at one time, and listen.
 
 # 
 
@@ -654,7 +654,7 @@
 
 # 
 
-# Standing in front of them now, she understood that none of those explanations would work, because explaining was the City Clan's language, and none of these people, deep down, in the part of themselves that had been arguing for three hundred years, trusted explanations. They trusted what their own clan's memory was built to trust: stone, or ledger-ink, or law, or the deliberate shape of an absence. What they had never once, in three centuries, done together was \*listen\* to all five ways at once.
+# Standing in front of them now, she understood that none of those explanations would work, because explaining was the City Clan's language, and none of these people, deep down, in the part of themselves that had been arguing for three hundred years, trusted explanations. They trusted what their own clan's memory was built to trust: stone, or ledger-ink, or law, or the deliberate shape of an absence. What they had never once, in three centuries, done together was listen to all five ways at once.
 
 # 
 
@@ -678,7 +678,7 @@
 
 # 
 
-# "That's our word in it," he said. "Near the end. The old word for \*promise,\* the one that's carved nowhere in our halls because it isn't carved anywhere — it's only ever been sung. How does a Tideborn girl know a Deephewn word we don't even write down?"
+# "That's our word in it," he said. "Near the end. The old word for promise, the one that's carved nowhere in our halls because it isn't carved anywhere — it's only ever been sung. How does a Tideborn girl know a Deephewn word we don't even write down?"
 
 # 
 
@@ -694,11 +694,11 @@
 
 # 
 
-# \---
+# 
 
 # 
 
-# \## V. The Choice
+# V. The Choice
 
 # 
 
@@ -710,7 +710,7 @@
 
 # 
 
-# Standing at its border was unlike anything Wren had imagined. It was not cold, exactly, or hot, or any temperature that made sense against skin. It was simply \*absent\* in a way that made the whole idea of temperature feel briefly beside the point, the way asking about the colour of an empty room makes you realize colour was never really the room's to begin with. Birds would not fly over it; Wren watched a starling bank hard away from the border a hundred yards out, as if it had struck an invisible wall, and she understood, with a lurch, that the starling had more sense about the place than five clans of grown people who had spent three centuries pretending it wasn't there at all.
+# Standing at its border was unlike anything Wren had imagined. It was not cold, exactly, or hot, or any temperature that made sense against skin. It was simply absent in a way that made the whole idea of temperature feel briefly beside the point, the way asking about the colour of an empty room makes you realize colour was never really the room's to begin with. Birds would not fly over it; Wren watched a starling bank hard away from the border a hundred yards out, as if it had struck an invisible wall, and she understood, with a lurch, that the starling had more sense about the place than five clans of grown people who had spent three centuries pretending it wasn't there at all.
 
 # 
 
@@ -730,7 +730,7 @@
 
 # 
 
-# Then the Blank did not so much move as \*notice\* them — a pressure change, subtle as the moment before thunder, and every person standing at its edge felt, all at once, the unmistakable sensation of being weighed.
+# Then the Blank did not so much move as notice them — a pressure change, subtle as the moment before thunder, and every person standing at its edge felt, all at once, the unmistakable sensation of being weighed.
 
 # 
 
@@ -738,7 +738,7 @@
 
 # 
 
-# \*the telling is not payment. The telling is only the account, finally written correctly. Something real must still be given, freely, or the account remains open, and I will go on collecting it, one boat, one meadow, one name, for as long as it takes.\*
+# the telling is not payment. The telling is only the account, finally written correctly. Something real must still be given, freely, or the account remains open, and I will go on collecting it, one boat, one meadow, one name, for as long as it takes.
 
 # 
 
@@ -754,7 +754,7 @@
 
 # 
 
-# She set it down anyway — not the fact of him, not his name, but the private, unshared, aching \*shape\* of missing him that only she still carried, the last resistant knot of grief that had refused, until this moment, to be shared with anyone. She let it go into the space at the border of the Blank, the way the Hollowkin let go of their griefs each year, in love rather than force.
+# She set it down anyway — not the fact of him, not his name, but the private, unshared, aching shape of missing him that only she still carried, the last resistant knot of grief that had refused, until this moment, to be shared with anyone. She let it go into the space at the border of the Blank, the way the Hollowkin let go of their griefs each year, in love rather than force.
 
 # 
 
@@ -766,5 +766,117 @@
 
 # 
 
-# Bryn asked the Deephewn elders, that same night by messenger-bird, for permission to finally, formally, and forever seal the deepest shaft — not out of fear this time, but \*(manuset fortsetter ikke lenger enn dette ennå)\*
+# Bryn asked the Deephewn elders, that same night by messenger-bird, for permission to finally, formally, and forever seal the deepest shaft — not out of fear this time, but as a chosen ending, a story allowed to close rather than left to fester as an erased silence.
+
+# 
+
+# Master Feodor swore, before all five clans as witness, that the Archive would record its own forgeries plainly in the margin beside the truth, so that the record would finally show both what had happened and what fear had once made someone write instead.
+
+# 
+
+# Corvan tore the unpayable debt's first page from the ledger himself and burned it, which cost the Kestrin, by his own later reckoning, a genuinely enormous sum of unclaimable old favors — paid, at last, on purpose, instead of collected on someone else's back.
+
+# 
+
+# Ash simply stood, and let the whole circle finally hear the Empty Name spoken aloud, for the first time in three hundred years, by someone who was not Hollowkin at all.
+
+# 
+
+# And, before anyone could stop him, Elder Korr sent word back to the Deephewn halls that three sluices on the dam were to be opened before first light — not enough to undo two generations of damage, not enough to call it forgiveness, but enough to count as payment rather than posture.
+
+# 
+
+# The pressure at the Blank's edge did not vanish. It eased — the way a held breath eases, not into nothing, but into something survivable.
+
+# 
+
+# The colourless wound at the border of the Quiet Wood did not close.
+
+# 
+
+# But it stopped, that night, for the first time anyone could measure, growing.
+
+# 
+
+# 
+
+# 
+
+# VI. Rebuilding
+
+# 
+
+# Months later, when the delta had begun — slowly, stubbornly — to hold a little water again, because the Deephewn had quietly opened three sluices in their dam that no one on either side called a defeat, Wren stood on the mended causeway of the Drift and taught a new verse to a class of children too young to remember any of it firsthand.
+
+# 
+
+# It was not a triumphant verse. It did not claim the debt was paid in full, or that the Blank would never grow again, or that five clans who had hated each other for three hundred years now loved one another simply because they'd stood together once at the edge of something larger than their grudges. It said only what was true: that they had been one people, and had broken themselves in fear, and had begun, slowly and at real cost, to remember how to be five people who at least no longer pretended not to be kin.
+
+# 
+
+# "This is how it started," Wren told the children, when the verse was done and they asked her, as children always ask, whether it had a proper ending. "I don't actually know if it has an ending yet. What came after was hundreds of smaller songs — some brave, some foolish, some still being argued about at every crossing and every council fire from here to the mountains. Every one of them is still being written."
+
+# 
+
+# She looked out at the lagoon, where the water — real water, moving, catching the light the way water is supposed to — had crept a little further up the old mud flats than it had in a decade, and thought that this, at least, was a fact worth singing about, whatever came next.
+
+# 
+
+# Tam never did become a singer, though he came to every one of Wren's teaching sessions and sat at the back correcting her rhythm when she rushed a line, which he claimed was a service to the art and she claimed was simply Tam being Tam.
+
+# 
+
+# Idris left the Vantor Archive within the year to build, with Master Feodor's grudging blessing, a new department nobody had a proper name for yet — one whose only task was recording the things the Archive had once tried to hide, margin by margin, so that the shelves would finally be honest even where honesty was uncomfortable.
+
+# 
+
+# Bryn spent that whole first winter carving a single new inscription into the wall beside the newly, permanently sealed shaft — not the old warning, ground away for a century, but a plain account of what five strangers had found down there, and what it had cost, and what it meant, so that no Deephewn child born after him would ever again have to rediscover a truth by accident that their own people had chosen, out of fear, to erase.
+
+# 
+
+# And in the Quiet Wood, Ash's people began, cautiously, to teach one small part of the letting-go to outsiders who came in good faith: not enough to turn the forest into a school for the other four clans, but enough to remind them that setting something down freely was not always the same thing as losing it.
+
+# 
+
+# That was the beginning of the rebuilding, Wren would later think — not the night at the Blank itself, though songs made that night sound more dramatic than it had felt, but the quieter, slower months afterward, when people who had once only known how to defend their own fragment began, awkwardly, to make room for the truth that the fragment had never been the whole.
+
+# 
+
+# It was messier than any song liked to admit. The Kestrin still counted too carefully. The Tideborn still distrusted stone. The Deephewn still spoke apologies as if they were swallowing nails. Vantor still tried, now and then, to tidy the truth into something more flattering than it had been. And nobody, not even the Hollowkin, entirely agreed on how much memory a person should carry before it began carrying them instead.
+
+# 
+
+# But now the arguments happened in the open.
+
+# 
+
+# Now the silences were named.
+
+# 
+
+# Now, when a verse of the Long Song reached one of its old smooth gaps, Wren would stop and tell the children the truth: "Something was lost here. We know the shape of it, but not the whole of it. So we leave the place open, and we do not pretend that open means empty."
+
+# 
+
+# The children learned that too — that there was courage not only in remembering, but in admitting the places where memory failed.
+
+# 
+
+# And because one generation, at the edge of the Blank, had finally chosen to pay something freely rather than let the world go on collecting by force, the next generation inherited what no one before them had managed to leave behind:
+
+# 
+
+# not a healed world,
+
+# 
+
+# but a truthful one.
+
+# 
+
+# And in a shrinking world, truth was the first ground that held.
+
+# 
+
+# — End —
 

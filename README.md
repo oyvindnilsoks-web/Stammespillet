@@ -68,9 +68,12 @@ produksjon ennå.** Se punktene under.
   Song" – hentet som markdown fra `public/docs/` og rendret med en liten,
   egenbygd markdown-renderer (`public/js/markdown.js`). Ren
   bakgrunnslesning, ikke koblet til Supabase eller spillfremgang. Har
-  plassholder-illustrasjoner (`public/assets/images/lore/`). **Merk:**
-  `the_long_song.md` er et utkast som slutter midt i en setning i akt V –
-  novellen må fullføres før dette er ferdig innhold.
+  plassholder-illustrasjoner (`public/assets/images/lore/`). Begge
+  dokumentene er ferdige (novellen "The Long Song" dekker akt I–VI,
+  fram til "— End —"). Rendereren gjenkjenner overskrifter i
+  "The Long Song" heuristisk (korte linjer uten avsluttende tegnsetting),
+  siden kildefilens overskrift-markering ble borte i en tidligere
+  eksport – ingen `#`-tegn å støtte seg på lenger i den filen.
 
 ### Gjenstår
 1. **Deploy til produksjon** – blokkert av at Netlify-kontoen har nådd
