@@ -5,6 +5,7 @@ import { renderLexicon } from './lexicon.js';
 import { renderGallery } from './gallery.js';
 import { renderCredits } from './credits.js';
 import { renderIntro } from './intro.js';
+import { renderLore } from './lore.js';
 import { playForScene, playCredits, renderAudioControl } from './audio.js';
 
 const app = document.getElementById('app');
@@ -23,6 +24,7 @@ function renderNav(authenticated, displayTag) {
     <button id="nav-play">Spill</button>
     <button id="nav-lexicon">Stammeleksikon</button>
     <button id="nav-gallery">Galleri</button>
+    <button id="nav-lore">Verdenshistorie</button>
     <button id="nav-intro">Se introen</button>
     <span id="nav-audio"></span>
     <a id="nav-logout" href="${logoutUrl()}">Logg ut</a>
@@ -30,6 +32,7 @@ function renderNav(authenticated, displayTag) {
   document.getElementById('nav-play').addEventListener('click', showGameOrSelect);
   document.getElementById('nav-lexicon').addEventListener('click', showLexicon);
   document.getElementById('nav-gallery').addEventListener('click', showGallery);
+  document.getElementById('nav-lore').addEventListener('click', showLore);
   document.getElementById('nav-intro').addEventListener('click', () => showIntro(showGameOrSelect));
   renderAudioControl(document.getElementById('nav-audio'));
 }
@@ -53,6 +56,10 @@ function showLexicon() {
 
 function showGallery() {
   renderGallery(app, content);
+}
+
+function showLore() {
+  renderLore(app);
 }
 
 function showCredits() {

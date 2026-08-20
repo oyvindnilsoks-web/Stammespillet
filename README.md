@@ -63,6 +63,14 @@ produksjon ennå.** Se punktene under.
   på nytt. Bygges inn via `youtube-nocookie.com` (unlisted YouTube-video,
   ingen sporingscookies). **Video-ID-en er ikke lagt inn ennå** – se
   `INTRO_VIDEO_ID` øverst i `intro.js`.
+- **Verdenshistorie** (`public/js/lore.js`): egen visning (nav-knapp
+  "Verdenshistorie") med to faner – Lore-bibelen og novellen "The Long
+  Song" – hentet som markdown fra `public/docs/` og rendret med en liten,
+  egenbygd markdown-renderer (`public/js/markdown.js`). Ren
+  bakgrunnslesning, ikke koblet til Supabase eller spillfremgang. Har
+  plassholder-illustrasjoner (`public/assets/images/lore/`). **Merk:**
+  `the_long_song.md` er et utkast som slutter midt i en setning i akt V –
+  novellen må fullføres før dette er ferdig innhold.
 
 ### Gjenstår
 1. **Deploy til produksjon** – blokkert av at Netlify-kontoen har nådd

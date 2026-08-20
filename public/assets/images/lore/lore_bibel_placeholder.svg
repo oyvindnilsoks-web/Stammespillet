@@ -1,0 +1,50 @@
+<svg viewBox="0 0 800 340" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="340" fill="#2a2319"/>
+  <rect x="0" y="0" width="800" height="340" fill="none" stroke="#c98f3e" stroke-width="2" stroke-opacity="0.4"/>
+
+  <!-- abstract map: five regions connected by faint roads -->
+  <g stroke="#c98f3e" stroke-width="1.5" stroke-opacity="0.35" fill="none">
+    <path d="M140,110 L400,150 L640,90"/>
+    <path d="M400,150 L420,260"/>
+    <path d="M400,150 L200,250"/>
+    <path d="M640,90 L660,240"/>
+  </g>
+
+  <!-- mountain (fjell) -->
+  <g transform="translate(100,80)">
+    <polygon points="0,60 25,10 40,35 60,0 90,60" fill="#c98f3e" fill-opacity="0.6"/>
+  </g>
+
+  <!-- water (vann) -->
+  <g transform="translate(160,230)">
+    <path d="M0,20 Q20,0 40,20 T80,20" stroke="#c98f3e" stroke-width="4" fill="none" stroke-opacity="0.7"/>
+  </g>
+
+  <!-- city (by) -->
+  <g transform="translate(370,110)">
+    <rect x="0" y="20" width="14" height="30" fill="#c98f3e" fill-opacity="0.6"/>
+    <rect x="18" y="5" width="14" height="45" fill="#c98f3e" fill-opacity="0.6"/>
+    <rect x="36" y="25" width="14" height="25" fill="#c98f3e" fill-opacity="0.6"/>
+  </g>
+
+  <!-- crossing (handel) -->
+  <g transform="translate(390,240)" stroke="#c98f3e" stroke-width="3" stroke-opacity="0.7">
+    <line x1="-15" y1="0" x2="15" y2="0"/>
+    <line x1="0" y1="-15" x2="0" y2="15"/>
+  </g>
+
+  <!-- forest (skog) -->
+  <g transform="translate(600,60)">
+    <polygon points="0,45 15,0 30,45" fill="#c98f3e" fill-opacity="0.6"/>
+    <polygon points="18,45 33,5 48,45" fill="#c98f3e" fill-opacity="0.6"/>
+  </g>
+
+  <!-- the Blank -->
+  <g transform="translate(600,220)">
+    <ellipse cx="60" cy="40" rx="70" ry="40" fill="#f2e9da" fill-opacity="0.06" stroke="#f2e9da" stroke-opacity="0.3" stroke-dasharray="4 4"/>
+  </g>
+
+  <text x="400" y="300" text-anchor="middle" fill="#b8a98e" font-family="Georgia, serif" font-size="18" font-style="italic">
+    Placeholder-kart – erstattes med elevenes/Midjourney-kart
+  </text>
+</svg>

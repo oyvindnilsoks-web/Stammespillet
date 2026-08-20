@@ -156,3 +156,25 @@ nav a#nav-logout {
   height: 100%;
   border: none;
 }
+
+.lore-view { max-width: 640px; margin: 0 auto; }
+.lore-tabs { display: flex; gap: 0.5rem; margin: 0.75rem 0 1.25rem; flex-wrap: wrap; }
+.lore-tabs .lore-tab { background: var(--panel); border: 1px solid var(--muted); color: var(--muted-text); }
+.lore-tabs .lore-tab.active { background: var(--accent); color: #1b1712; border-color: var(--accent); }
+
+.lore-body { text-align: left; line-height: 1.65; }
+.lore-body .lore-cover { width: 100%; border-radius: 10px; margin-bottom: 1.5rem; }
+.lore-body h1 { font-size: 1.6rem; margin-top: 0; }
+.lore-body h2 { font-size: 1.3rem; margin-top: 2rem; color: var(--accent); }
+.lore-body h3 { font-size: 1.1rem; margin-top: 1.5rem; }
+.lore-body p { margin: 0.85rem 0; }
+.lore-body blockquote {
+  margin: 1rem 0;
+  padding: 0.5rem 1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--panel);
+  color: var(--muted-text);
+  font-style: italic;
+}
+.lore-body ul { padding-left: 1.3rem; }
+.lore-body hr { border: none; border-top: 1px solid var(--muted); margin: 2rem 0; }
