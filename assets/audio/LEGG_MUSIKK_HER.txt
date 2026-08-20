@@ -1,0 +1,7 @@
+Legg royaltyfrie/CC-lisensierte musikkfiler her (mp3/ogg).
+Forslag til struktur:
+- world_theme.mp3        -> generell bakgrunnsmusikk
+- tribe_<stammenavn>.mp3 -> ambient-spor for hvert stammeområde (valgfritt)
+- credits.mp3            -> spilles på rulletekst-skjermen ved en slutt
+
+Kilder å vurdere: Pixabay Music, incompetech.com, OpenGameArt.org
