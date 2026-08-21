@@ -1,4 +1,9 @@
-# Stammespillet
+# Stammespillet ("The Unmaking")
+
+Spillets tittel i grensesnittet er **"The Unmaking"** – hele elevopplevelsen
+(knapper, tekst, meldinger, innhold) er på engelsk, siden dette er
+engelskfagets prosjekt. "Stammespillet" brukes fortsatt som prosjektnavn i
+dokumentasjon og repo.
 
 Tekstbasert valgspill for 7. trinn (engelskfaget). Spilleren velger en
 elevutviklet karakter tilhørende en stamme, og tar seg gjennom scener med
@@ -22,7 +27,14 @@ produksjon ennå.** Se punktene under.
 - Spillmotor (`public/`): leser innhold generisk fra Supabase (ingen
   hardkoding av eksempeldataene), viser scene-tekst/bilde/valg, regner ut
   hvilken scene som er "start-scenen" for en stamme automatisk, håndterer
-  "consequences" som flagg, og har en enkel stammeleksikon-visning.
+  "consequences" som flagg, og har en enkel klan-leksikon-visning
+  ("Clan Lexicon"). Hele grensesnittet er på engelsk.
+- **De 5 rammeverk-klanene fra lore-bibelen** (Mountain/Water/City/Trader/
+  Forest Clan) er lagt inn i `tribes`-tabellen med ressurs, kultur og
+  forhold til hverandre – synlige i Clan Lexicon og Gallery. Navnene er
+  placeholder (elevene skal navngi klanene selv). De to opprinnelige
+  test-stammene (Nordmyr/Solvang, med spillbare karakterer og scener) ligger
+  fortsatt i tabellen for motor-testing, nå også oversatt til engelsk.
 - Innlogging (`netlify/functions/auth-*.js`): standard OIDC med PKCE mot
   Feide, med automatisk fallback til en tydelig merket testinnlogging
   (`dev-login.html`) så lenge Feide ikke er konfigurert ennå.
@@ -63,17 +75,30 @@ produksjon ennå.** Se punktene under.
   på nytt. Bygges inn via `youtube-nocookie.com` (unlisted YouTube-video,
   ingen sporingscookies). **Video-ID-en er ikke lagt inn ennå** – se
   `INTRO_VIDEO_ID` øverst i `intro.js`.
-- **Verdenshistorie** (`public/js/lore.js`): egen visning (nav-knapp
-  "Verdenshistorie") med to faner – Lore-bibelen og novellen "The Long
-  Song" – hentet som markdown fra `public/docs/` og rendret med en liten,
-  egenbygd markdown-renderer (`public/js/markdown.js`). Ren
+- **World Lore** (`public/js/lore.js`): egen visning (nav-knapp
+  "World Lore") med to faner – "Chronicle of the Clans" og novellen "The
+  Long Song" – hentet som markdown fra `public/docs/` og rendret med en
+  liten, egenbygd markdown-renderer (`public/js/markdown.js`). Ren
   bakgrunnslesning, ikke koblet til Supabase eller spillfremgang. Har
-  plassholder-illustrasjoner (`public/assets/images/lore/`). Begge
-  dokumentene er ferdige (novellen "The Long Song" dekker akt I–VI,
-  fram til "— End —"). Rendereren gjenkjenner overskrifter i
-  "The Long Song" heuristisk (korte linjer uten avsluttende tegnsetting),
-  siden kildefilens overskrift-markering ble borte i en tidligere
-  eksport – ingen `#`-tegn å støtte seg på lenger i den filen.
+  plassholder-illustrasjon for novellen og et ekte, komprimert verdenskart
+  som forside for krøniken (`public/assets/images/lore/`). Begge
+  dokumentene er ferdige og på engelsk (novellen dekker akt I–VI, fram til
+  "— End —"). Rendereren gjenkjenner overskrifter i "The Long Song"
+  heuristisk (korte linjer uten avsluttende tegnsetting), siden
+  kildefilens overskrift-markering ble borte i en eksport – ingen `#`-tegn
+  å støtte seg på lenger i den filen.
+  **Merk:** "Chronicle of the Clans" (`docs/WORLD_LORE_EN.md`) er en
+  forkortet, elevvennlig engelsk oversettelse av den norske
+  `docs/LORE_BIBEL.md` (avsnitt 1–3, 5–8 – uten lærernotatene i avsnitt
+  12–14). Den norske originalen er fortsatt ditt planleggingsverktøy og
+  vises ikke til elevene.
+- **Klikk-for-oversettelse** (`public/js/translate.js`): alle engelske ord i
+  scenetekst og i World Lore-dokumentene er klikkbare – et klikk viser en
+  norsk oversettelse i en liten boks, hentet fra den gratis
+  MyMemory-oversettelses-APIen (ingen nøkkel/konto trengs, kun enkeltord
+  sendes, ingen elevdata). Resultater caches i nettleseren. Koblet på via
+  én delegert lytter på `#app` i `main.js`, så den virker uansett hvilken
+  visning som er aktiv.
 
 ### Gjenstår
 1. **Deploy til produksjon** – blokkert av at Netlify-kontoen har nådd
