@@ -1,7 +1,9 @@
 // Click-to-translate: wraps English words in reading content so a student
-// can click one and see a Norwegian translation in a small popup. Uses the
-// free MyMemory API (no key/account needed) - fine here since only isolated
-// game/story words are sent, never anything about the student.
+// can click one and see a Norwegian translation in a small popup. Tries the
+// free MyMemory API first, then falls back to Google Translate's free
+// endpoint if MyMemory is down, rate-limited, or has no result - both are
+// keyless and fine here since only isolated game/story words are ever sent,
+// never anything about the student.
 
 const cache = new Map();
 let popupEl = null;
@@ -27,19 +29,39 @@ document.addEventListener('keydown', (e) => {
 });
 window.addEventListener('scroll', hidePopup, true);
 
+async function tryMyMemory(word) {
+  const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|no`);
+  const data = await res.json();
+  return data?.responseData?.translatedText || null;
+}
+
+async function tryGoogle(word) {
+  const res = await fetch(
+    `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=no&dt=t&q=${encodeURIComponent(word)}`
+  );
+  const data = await res.json();
+  return data?.[0]?.[0]?.[0] || null;
+}
+
 async function fetchTranslation(word) {
   const key = word.toLowerCase();
   if (cache.has(key)) return cache.get(key);
-  try {
-    const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|no`);
-    const data = await res.json();
-    const translated = data?.responseData?.translatedText;
-    const result = translated && translated.toLowerCase() !== word.toLowerCase() ? translated : null;
-    cache.set(key, result);
-    return result;
-  } catch {
-    return null;
+
+  let result = null;
+  for (const attempt of [tryMyMemory, tryGoogle]) {
+    try {
+      const translated = await attempt(word);
+      if (translated && translated.toLowerCase() !== word.toLowerCase()) {
+        result = translated;
+        break;
+      }
+    } catch {
+      // try the next provider
+    }
   }
+
+  cache.set(key, result);
+  return result;
 }
 
 // Delegated click handler - call once per container that holds translatable
