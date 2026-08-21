@@ -11,7 +11,7 @@ function imgTag(path, alt) {
 // game, grouped by tribe.
 export function renderGallery(container, { tribes, characters }) {
   if (tribes.size === 0) {
-    container.innerHTML = '<h2>Galleri</h2><p>Ingen bilder er lagt inn ennå.</p>';
+    container.innerHTML = '<h2>Gallery</h2><p>No images have been added yet.</p>';
     return;
   }
 
@@ -30,7 +30,7 @@ export function renderGallery(container, { tribes, characters }) {
 
       return `
         <section class="gallery-tribe">
-          <h3>${t.name}${t.population ? ` <span class="muted">(${t.population} innbyggere)</span>` : ''}</h3>
+          <h3>${t.name}${t.population ? ` <span class="muted">(population ${t.population})</span>` : ''}</h3>
           <figure class="gallery-figure gallery-figure-large">
             ${imgTag(t.image, t.name)}
             <figcaption>${t.territory?.region_name || t.name}</figcaption>
@@ -40,5 +40,5 @@ export function renderGallery(container, { tribes, characters }) {
     })
     .join('');
 
-  container.innerHTML = `<h2>Galleri</h2><div class="gallery">${sections}</div>`;
+  container.innerHTML = `<h2>Gallery</h2><div class="gallery">${sections}</div>`;
 }

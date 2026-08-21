@@ -5,8 +5,8 @@ import { renderMarkdown } from './markdown.js';
 // so the class can read them before playing.
 const DOCS = {
   bibel: {
-    label: 'Lore-bibelen',
-    url: '/docs/lore-bibel.md',
+    label: 'Chronicle of the Clans',
+    url: '/docs/world-lore.md',
     image: '/assets/images/lore/world_map.jpg',
     demangle: false,
   },
@@ -35,9 +35,9 @@ export async function renderLore(container, initialKey = 'bibel') {
 
   container.innerHTML = `
     <div class="lore-view">
-      <h2>Verdenshistorie</h2>
+      <h2>World Lore</h2>
       <div class="lore-tabs">${tabs}</div>
-      <div class="lore-body" id="lore-body">Laster...</div>
+      <div class="lore-body" id="lore-body">Loading...</div>
     </div>
   `;
 
@@ -47,7 +47,7 @@ export async function renderLore(container, initialKey = 'bibel') {
     container.querySelectorAll('.lore-tab').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.key === key);
     });
-    body.innerHTML = 'Laster...';
+    body.innerHTML = 'Loading...';
     const html = await loadDoc(key);
     body.innerHTML = `<img class="lore-cover" src="${DOCS[key].image}" alt="${DOCS[key].label}">${html}`;
   }

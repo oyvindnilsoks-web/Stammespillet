@@ -1,4 +1,9 @@
 import { imageUrl } from './content.js';
+import { translatable } from './translate.js';
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 
 // A scene is an "entry scene" for a tribe if nothing in that tribe's own
 // main-plot scene graph points to it. This lets the engine find a starting
@@ -35,14 +40,14 @@ export function renderCharacterSelect(container, { characters, tribes }, onChoos
           <h3>${c.name}</h3>
           <p class="muted">${c.role || ''}${tribe ? ` · ${tribe.name}` : ''}</p>
           <p>${c.description || ''}</p>
-          ${c.goal ? `<p class="muted">Mål: ${c.goal}</p>` : ''}
+          ${c.goal ? `<p class="muted">Goal: ${c.goal}</p>` : ''}
         </button>`;
     })
     .join('');
 
   container.innerHTML = `
-    <h2>Velg karakter</h2>
-    ${characters.size === 0 ? '<p>Ingen karakterer er lagt inn ennå.</p>' : `<div class="card-grid">${cards}</div>`}
+    <h2>Choose a character</h2>
+    ${characters.size === 0 ? '<p>No characters have been added yet.</p>' : `<div class="card-grid">${cards}</div>`}
   `;
 
   container.querySelectorAll('.character-card').forEach((btn) => {
@@ -60,13 +65,13 @@ export function renderScene(container, { scene, tribe }, onChoice) {
       ${imgTag(scene.image, scene.title)}
       <h2>${scene.title || ''}</h2>
       ${tribe ? `<p class="muted">${tribe.name}</p>` : ''}
-      <p class="scene-text">${scene.text || ''}</p>
+      <p class="scene-text">${translatable(escapeHtml(scene.text || ''))}</p>
       ${
         scene.is_ending
-          ? `<p class="ending-label">— Slutt —</p>
+          ? `<p class="ending-label">— The End —</p>
              <div class="choices">
-               <button class="choice-btn" id="credits-btn">Vis rulletekst</button>
-               <button class="choice-btn" id="restart-btn">Spill igjen</button>
+               <button class="choice-btn" id="credits-btn">View credits</button>
+               <button class="choice-btn" id="restart-btn">Play again</button>
              </div>`
           : `<div class="choices">${choices}</div>`
       }

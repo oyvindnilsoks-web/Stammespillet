@@ -1,23 +1,23 @@
 <!DOCTYPE html>
-<html lang="nb">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Stammespillet - testinnlogging</title>
+  <title>The Unmaking - test login</title>
   <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body>
   <main class="login-box">
-    <h1>Testinnlogging</h1>
+    <h1>Test login</h1>
     <p class="error">
-      Feide er ikke koblet til ennå (venter på oppsett fra Steinkjer kommune).
-      Denne siden er kun for å teste spillmotoren, og virker bare når
-      <code>ENABLE_DEV_LOGIN=true</code> er satt på serveren.
+      Feide isn't connected yet (waiting on setup from the school). This
+      page is only for testing the game engine, and only works when
+      <code>ENABLE_DEV_LOGIN=true</code> is set on the server.
     </p>
     <form id="dev-login-form">
-      <label for="testId">Velg en testbruker-id</label>
-      <input id="testId" name="testId" placeholder="f.eks. elev1" required />
-      <button type="submit" class="choice-btn">Logg inn (test)</button>
+      <label for="testId">Choose a test user id</label>
+      <input id="testId" name="testId" placeholder="e.g. student1" required />
+      <button type="submit" class="choice-btn">Log in (test)</button>
     </form>
     <p id="dev-login-error" class="error" hidden></p>
   </main>

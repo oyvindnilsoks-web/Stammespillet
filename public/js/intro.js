@@ -9,21 +9,21 @@ export function renderIntro(container, onDone) {
 
   container.innerHTML = `
     <div class="intro">
-      <h2>Om verdenen</h2>
+      <h2>About the world</h2>
       ${
         hasVideo
           ? `<div class="intro-video-wrap">
                <iframe
                  src="https://www.youtube-nocookie.com/embed/${INTRO_VIDEO_ID}"
-                 title="Introduksjon til Stammespillet"
+                 title="Introduction to The Unmaking"
                  frameborder="0"
                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                  allowfullscreen
                ></iframe>
              </div>`
-          : '<p class="muted">Introvideoen er ikke lagt inn ennå (se INTRO_VIDEO_ID i public/js/intro.js).</p>'
+          : '<p class="muted">The intro video has not been added yet (see INTRO_VIDEO_ID in public/js/intro.js).</p>'
       }
-      <button class="choice-btn" id="intro-continue-btn">Fortsett til spillet</button>
+      <button class="choice-btn" id="intro-continue-btn">Continue to the game</button>
     </div>
   `;
 

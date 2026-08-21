@@ -7,9 +7,14 @@ import { renderCredits } from './credits.js';
 import { renderIntro } from './intro.js';
 import { renderLore } from './lore.js';
 import { playForScene, playCredits, renderAudioControl } from './audio.js';
+import { enableTranslation } from './translate.js';
 
 const app = document.getElementById('app');
 const nav = document.getElementById('nav');
+
+// Click-to-translate is delegated on the persistent #app container, so this
+// only needs to run once - it keeps working across every view re-render.
+enableTranslation(app);
 
 let content = null; // { tribes, characters, scenes }
 let state = null; // { chosen_character, current_scene, flags, visited_tribes }
@@ -20,14 +25,14 @@ function renderNav(authenticated, displayTag) {
     return;
   }
   nav.innerHTML = `
-    <span class="muted">Innlogget${displayTag ? ` (${displayTag})` : ''}</span>
-    <button id="nav-play">Spill</button>
-    <button id="nav-lexicon">Stammeleksikon</button>
-    <button id="nav-gallery">Galleri</button>
-    <button id="nav-lore">Verdenshistorie</button>
-    <button id="nav-intro">Se introen</button>
+    <span class="muted">Logged in${displayTag ? ` (${displayTag})` : ''}</span>
+    <button id="nav-play">Play</button>
+    <button id="nav-lexicon">Clan Lexicon</button>
+    <button id="nav-gallery">Gallery</button>
+    <button id="nav-lore">World Lore</button>
+    <button id="nav-intro">Watch the intro</button>
     <span id="nav-audio"></span>
-    <a id="nav-logout" href="${logoutUrl()}">Logg ut</a>
+    <a id="nav-logout" href="${logoutUrl()}">Log out</a>
   `;
   document.getElementById('nav-play').addEventListener('click', showGameOrSelect);
   document.getElementById('nav-lexicon').addEventListener('click', showLexicon);
@@ -42,10 +47,10 @@ function showLoginScreen() {
   const err = params.get('login_error');
   app.innerHTML = `
     <div class="login-box">
-      <h1>Stammespillet</h1>
-      <p>Logg inn med Feide for å spille og lagre fremgangen din.</p>
-      ${err ? `<p class="error">Innlogging feilet: ${err}</p>` : ''}
-      <a class="choice-btn" href="${loginUrl()}">Logg inn med Feide</a>
+      <h1>The Unmaking</h1>
+      <p>Log in with Feide to play and save your progress.</p>
+      ${err ? `<p class="error">Login failed: ${err}</p>` : ''}
+      <a class="choice-btn" href="${loginUrl()}">Log in with Feide</a>
     </div>
   `;
 }
@@ -89,7 +94,7 @@ async function showGameOrSelect() {
 function showScene() {
   const scene = content.scenes.get(state.current_scene);
   if (!scene) {
-    app.innerHTML = `<p class="error">Fant ikke scenen "${state.current_scene}".</p>`;
+    app.innerHTML = `<p class="error">Could not find the scene "${state.current_scene}".</p>`;
     return;
   }
   const tribe = content.tribes.get(scene.tribe_id);
@@ -179,5 +184,5 @@ async function init() {
 
 init().catch((err) => {
   console.error(err);
-  app.innerHTML = `<p class="error">Noe gikk galt: ${err.message}</p>`;
+  app.innerHTML = `<p class="error">Something went wrong: ${err.message}</p>`;
 });

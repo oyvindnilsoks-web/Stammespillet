@@ -178,3 +178,22 @@ nav a#nav-logout {
 }
 .lore-body ul { padding-left: 1.3rem; }
 .lore-body hr { border: none; border-top: 1px solid var(--muted); margin: 2rem 0; }
+
+.tr-word {
+  cursor: pointer;
+  border-bottom: 1px dotted var(--muted-text);
+}
+.tr-word:hover { border-bottom-color: var(--accent); color: var(--accent); }
+
+.translate-popup {
+  position: absolute;
+  z-index: 100;
+  background: var(--accent);
+  color: #1b1712;
+  padding: 0.4rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: system-ui, sans-serif;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  max-width: 240px;
+}

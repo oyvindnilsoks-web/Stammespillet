@@ -49,7 +49,7 @@ export function playCredits() {
 export function renderAudioControl(container) {
   container.innerHTML = `
     <span class="audio-control">
-      <button id="audio-mute-btn" title="Skru lyd av/på">${audioEl.muted ? '🔇' : '🔊'}</button>
+      <button id="audio-mute-btn" title="Toggle sound">${audioEl.muted ? '🔇' : '🔊'}</button>
       <input id="audio-volume" type="range" min="0" max="1" step="0.05" value="${audioEl.volume}" />
     </span>
   `;

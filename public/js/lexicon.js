@@ -8,7 +8,7 @@ function imgTag(path, alt) {
 
 export function renderLexicon(container, { tribes, characters }) {
   if (tribes.size === 0) {
-    container.innerHTML = '<h2>Stammeleksikon</h2><p>Ingen stammer er lagt inn ennå.</p>';
+    container.innerHTML = '<h2>Clan Lexicon</h2><p>No clans have been added yet.</p>';
     return;
   }
 
@@ -24,17 +24,17 @@ export function renderLexicon(container, { tribes, characters }) {
           ${imgTag(t.image, t.name)}
           <h3>${t.name}</h3>
           <p class="muted">${t.territory?.region_name || ''}</p>
-          <p><strong>Ressurs:</strong> ${t.resource || '–'}</p>
-          <p><strong>Kultur:</strong> ${t.culture || '–'}</p>
-          ${relations ? `<p><strong>Forhold til andre stammer:</strong> ${relations}</p>` : ''}
+          <p><strong>Resource:</strong> ${t.resource || '–'}</p>
+          <p><strong>Culture:</strong> ${t.culture || '–'}</p>
+          ${relations ? `<p><strong>Relations to other clans:</strong> ${relations}</p>` : ''}
           ${
             members.length
-              ? `<div class="tribe-members"><strong>Karakterer:</strong> ${members.map((m) => m.name).join(', ')}</div>`
+              ? `<div class="tribe-members"><strong>Characters:</strong> ${members.map((m) => m.name).join(', ')}</div>`
               : ''
           }
         </article>`;
     })
     .join('');
 
-  container.innerHTML = `<h2>Stammeleksikon</h2><div class="lexicon-grid">${sections}</div>`;
+  container.innerHTML = `<h2>Clan Lexicon</h2><div class="lexicon-grid">${sections}</div>`;
 }

@@ -2,12 +2,15 @@
 // what these docs use: headings, paragraphs, bold/italic, blockquotes, lists,
 // horizontal rules. Not a general-purpose markdown parser - kept small on purpose.
 
+import { translatable } from './translate.js';
+
 function escapeHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function inline(text) {
   let html = escapeHtml(text);
+  html = translatable(html); // click-to-translate: wrap words before adding **/* markup
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
   return html;
