@@ -281,11 +281,12 @@ export function renderReadInNorwegian(afterEl, text) {
   return btn;
 }
 
-// Compact icon-only version for tight spaces like choice buttons: a small
-// 🔊 (listen in English) and 🇳🇴 (Norwegian popup) pair, appended into
-// `container`. Both stop click propagation so they never trigger a parent
-// choice button's own click handler.
-export function renderChoiceLangControls(container, text) {
+// Compact icon-only version for tight spaces - choice buttons, or trailing
+// right after a paragraph of lore text: a small 🔊 (listen in English) and
+// 🇳🇴 (Norwegian popup) pair, appended into `container`. Both stop click
+// propagation so they never trigger a parent element's own click handler
+// (e.g. a choice button).
+export function renderInlineLangControls(container, text) {
   const wrap = document.createElement('span');
   wrap.className = 'choice-lang-controls';
 

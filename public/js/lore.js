@@ -1,4 +1,5 @@
 import { renderMarkdown } from './markdown.js';
+import { renderInlineLangControls } from './translate.js';
 
 // Pure background reading material - not connected to Supabase, spillfremgang,
 // or student-authored content. Just displays the two planning/lore documents
@@ -53,6 +54,16 @@ export async function renderLore(container, initialKey = 'bibel') {
       ? `<img class="lore-cover" src="${DOCS[key].image}" alt="${DOCS[key].label}">`
       : '';
     body.innerHTML = `${cover}${html}`;
+
+    // Per-paragraph listen/translate controls rather than one control for
+    // the whole document - "The Long Song" alone is ~10,000 words, and
+    // translating that in one go would blow through the free translation
+    // API's daily quota on a single click. Paragraph-sized chunks stay fast
+    // and only get used when a student actually needs them.
+    body.querySelectorAll('p').forEach((p) => {
+      const text = p.textContent.trim();
+      if (text) renderInlineLangControls(p, text);
+    });
   }
 
   container.querySelectorAll('.lore-tab').forEach((btn) => {

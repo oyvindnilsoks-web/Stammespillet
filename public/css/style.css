@@ -112,15 +112,17 @@ nav a#nav-logout {
 
 .choice-row { display: flex; align-items: stretch; gap: 0.4rem; }
 .choice-row .choice-btn { flex: 1; }
-.choice-lang-controls { display: flex; gap: 0.3rem; flex-shrink: 0; }
+.choice-lang-controls { display: inline-flex; gap: 0.3rem; flex-shrink: 0; vertical-align: middle; }
+.choice-row .choice-lang-controls { display: flex; }
 .choice-icon-btn {
   background: transparent;
   border: 1px solid var(--muted);
   color: var(--muted-text);
-  font-size: 0.95rem;
-  padding: 0 0.6rem;
+  font-size: 0.85rem;
+  padding: 0.1rem 0.5rem;
 }
 .choice-icon-btn:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
+.lore-body p .choice-lang-controls { margin-left: 0.5rem; }
 
 .ending-label { font-style: italic; color: var(--accent); margin-top: 1rem; }
 

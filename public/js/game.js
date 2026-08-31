@@ -1,5 +1,5 @@
 import { imageUrl } from './content.js';
-import { translatable, renderReadInNorwegian, renderListenButton, renderChoiceLangControls } from './translate.js';
+import { translatable, renderReadInNorwegian, renderListenButton, renderInlineLangControls } from './translate.js';
 
 function escapeHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -94,7 +94,7 @@ export function renderScene(container, { scene, tribe }, onChoice) {
 
   container.querySelectorAll('.choice-row').forEach((row, i) => {
     row.querySelector('.choice-btn').addEventListener('click', () => onChoice(scene.choices[i]));
-    renderChoiceLangControls(row, scene.choices[i].text || '');
+    renderInlineLangControls(row, scene.choices[i].text || '');
   });
 }
 
