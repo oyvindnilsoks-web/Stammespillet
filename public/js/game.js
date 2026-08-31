@@ -1,5 +1,5 @@
 import { imageUrl } from './content.js';
-import { translatable, renderReadInNorwegian, renderListenButton } from './translate.js';
+import { translatable, renderReadInNorwegian, renderListenButton, renderChoiceLangControls } from './translate.js';
 
 function escapeHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -57,7 +57,12 @@ export function renderCharacterSelect(container, { characters, tribes }, onChoos
 
 export function renderScene(container, { scene, tribe }, onChoice) {
   const choices = (scene.choices || [])
-    .map((c, i) => `<button class="choice-btn" data-idx="${i}">${c.text}</button>`)
+    .map(
+      (c, i) => `
+        <div class="choice-row">
+          <button class="choice-btn" data-idx="${i}">${escapeHtml(c.text)}</button>
+        </div>`
+    )
     .join('');
 
   container.innerHTML = `
@@ -87,8 +92,9 @@ export function renderScene(container, { scene, tribe }, onChoice) {
     return;
   }
 
-  container.querySelectorAll('.choice-btn').forEach((btn) => {
-    btn.addEventListener('click', () => onChoice(scene.choices[Number(btn.dataset.idx)]));
+  container.querySelectorAll('.choice-row').forEach((row, i) => {
+    row.querySelector('.choice-btn').addEventListener('click', () => onChoice(scene.choices[i]));
+    renderChoiceLangControls(row, scene.choices[i].text || '');
   });
 }
 

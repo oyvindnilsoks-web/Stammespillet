@@ -232,18 +232,9 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') hideNoPopup();
 });
 
-// Adds a "🇳🇴 Norsk" toggle button right after `afterEl`. The page itself
-// stays English-only by default; clicking the button opens a popup (not an
-// inline box that pushes the page around) with the Norwegian translation
-// of `text` plus its own "listen" button. Safe to call once per rendered
-// page/scene.
-export function renderReadInNorwegian(afterEl, text) {
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'lang-btn no-toggle-btn';
-  btn.textContent = '🇳🇴 Norsk';
-  afterEl.insertAdjacentElement('afterend', btn);
-
+// Wires the shared "open a popup with the Norwegian translation of `text`"
+// behaviour onto an already-created button element.
+function attachNorwegianPopup(btn, text) {
   btn.addEventListener('click', async (e) => {
     e.stopPropagation();
     const popup = ensureNoPopup();
@@ -273,6 +264,50 @@ export function renderReadInNorwegian(afterEl, text) {
       popup.querySelector('.no-popup-speak').addEventListener('click', () => speak(translated, 'nb-NO'));
     }
   });
+}
 
+// Adds a "🇳🇴 Norsk" toggle button right after `afterEl`. The page itself
+// stays English-only by default; clicking the button opens a popup (not an
+// inline box that pushes the page around) with the Norwegian translation
+// of `text` plus its own "listen" button. Safe to call once per rendered
+// page/scene.
+export function renderReadInNorwegian(afterEl, text) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'lang-btn no-toggle-btn';
+  btn.textContent = '🇳🇴 Norsk';
+  afterEl.insertAdjacentElement('afterend', btn);
+  attachNorwegianPopup(btn, text);
   return btn;
+}
+
+// Compact icon-only version for tight spaces like choice buttons: a small
+// 🔊 (listen in English) and 🇳🇴 (Norwegian popup) pair, appended into
+// `container`. Both stop click propagation so they never trigger a parent
+// choice button's own click handler.
+export function renderChoiceLangControls(container, text) {
+  const wrap = document.createElement('span');
+  wrap.className = 'choice-lang-controls';
+
+  const listenBtn = document.createElement('button');
+  listenBtn.type = 'button';
+  listenBtn.className = 'choice-icon-btn';
+  listenBtn.title = 'Listen in English';
+  listenBtn.textContent = '🔊';
+  listenBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    speak(text, 'en-US');
+  });
+
+  const noBtn = document.createElement('button');
+  noBtn.type = 'button';
+  noBtn.className = 'choice-icon-btn no-toggle-btn';
+  noBtn.title = 'Norsk';
+  noBtn.textContent = '🇳🇴';
+  attachNorwegianPopup(noBtn, text);
+
+  wrap.appendChild(listenBtn);
+  wrap.appendChild(noBtn);
+  container.appendChild(wrap);
+  return wrap;
 }

@@ -110,6 +110,18 @@ nav a#nav-logout {
 .choices { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1.25rem; }
 .choice-btn { text-align: left; width: 100%; }
 
+.choice-row { display: flex; align-items: stretch; gap: 0.4rem; }
+.choice-row .choice-btn { flex: 1; }
+.choice-lang-controls { display: flex; gap: 0.3rem; flex-shrink: 0; }
+.choice-icon-btn {
+  background: transparent;
+  border: 1px solid var(--muted);
+  color: var(--muted-text);
+  font-size: 0.95rem;
+  padding: 0 0.6rem;
+}
+.choice-icon-btn:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
+
 .ending-label { font-style: italic; color: var(--accent); margin-top: 1rem; }
 
 .tribe-entry {
