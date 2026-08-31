@@ -146,34 +146,75 @@ export function renderListenButton(afterEl, text) {
   return btn;
 }
 
-// Adds a "🇳🇴 Read in Norwegian" toggle button right after `afterEl` that
-// reveals a Norwegian translation of `text` in a collapsible box
-// underneath, with its own read-aloud button once loaded. Safe to call
-// once per rendered page/scene.
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+let noPopupEl = null;
+let noPopupText = null; // text currently shown in the popup, used to support toggle-closed
+
+function ensureNoPopup() {
+  if (noPopupEl) return noPopupEl;
+  noPopupEl = document.createElement('div');
+  noPopupEl.className = 'no-popup';
+  noPopupEl.hidden = true;
+  document.body.appendChild(noPopupEl);
+  return noPopupEl;
+}
+
+function hideNoPopup() {
+  if (noPopupEl) noPopupEl.hidden = true;
+  noPopupText = null;
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.no-popup') && !e.target.closest('.no-toggle-btn')) hideNoPopup();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') hideNoPopup();
+});
+
+// Adds a "🇳🇴 Norsk" toggle button right after `afterEl`. The page itself
+// stays English-only by default; clicking the button opens a popup (not an
+// inline box that pushes the page around) with the Norwegian translation
+// of `text` plus its own "listen" button. Safe to call once per rendered
+// page/scene.
 export function renderReadInNorwegian(afterEl, text) {
-  const wrap = document.createElement('div');
-  wrap.className = 'no-summary-wrap';
-  wrap.innerHTML = `
-    <button class="lang-btn" type="button">🇳🇴 Read in Norwegian</button>
-    <div class="lang-summary" hidden></div>
-  `;
-  afterEl.insertAdjacentElement('afterend', wrap);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'lang-btn no-toggle-btn';
+  btn.textContent = '🇳🇴 Norsk';
+  afterEl.insertAdjacentElement('afterend', btn);
 
-  const btn = wrap.querySelector('.lang-btn');
-  const box = wrap.querySelector('.lang-summary');
+  btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const popup = ensureNoPopup();
 
-  btn.addEventListener('click', async () => {
-    if (!box.hidden) {
-      box.hidden = true;
+    if (!popup.hidden && noPopupText === text) {
+      hideNoPopup();
       return;
     }
-    box.hidden = false;
-    if (!box.dataset.loaded) {
-      box.textContent = 'Oversetter…';
-      const translated = await translateBlock(text);
-      box.textContent = translated || 'Fant ikke oversettelse akkurat nå - prøv igjen.';
-      box.dataset.loaded = '1';
-      if (translated) box.appendChild(speakerButton(translated, 'nb-NO', 'Les høyt på norsk'));
+
+    noPopupText = text;
+    const rect = btn.getBoundingClientRect();
+    popup.style.left = `${window.scrollX + rect.left}px`;
+    popup.style.top = `${window.scrollY + rect.bottom + 6}px`;
+    popup.innerHTML = '<p class="no-popup-text">Oversetter…</p>';
+    popup.hidden = false;
+
+    const translated = await translateBlock(text);
+    if (noPopupText !== text) return; // closed or moved on before this resolved
+
+    popup.innerHTML = `
+      <button class="no-popup-close" type="button" aria-label="Lukk">✕</button>
+      <p class="no-popup-text">${translated ? escapeHtml(translated) : 'Fant ikke oversettelse akkurat nå - prøv igjen.'}</p>
+      ${translated ? '<button class="lang-btn speaker-btn no-popup-speak" type="button">🔊 Hør</button>' : ''}
+    `;
+    popup.querySelector('.no-popup-close').addEventListener('click', hideNoPopup);
+    if (translated) {
+      popup.querySelector('.no-popup-speak').addEventListener('click', () => speak(translated, 'nb-NO'));
     }
   });
+
+  return btn;
 }
