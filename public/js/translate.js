@@ -32,6 +32,10 @@ window.addEventListener('scroll', hidePopup, true);
 async function tryMyMemory(word) {
   const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|no`);
   const data = await res.json();
+  // MyMemory returns HTTP 200 even for its own errors (quota, length limit),
+  // putting the error message in translatedText - only trust it when
+  // responseStatus genuinely says success.
+  if (String(data?.responseStatus) !== '200') return null;
   return data?.responseData?.translatedText || null;
 }
 
@@ -102,10 +106,44 @@ async function tryGoogleBlock(text) {
   return data?.[0]?.map((segment) => segment[0]).join('') || null;
 }
 
-async function tryMyMemoryBlock(text) {
-  const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|no`);
+const MYMEMORY_MAX_CHARS = 450; // MyMemory hard-caps at 500; leave margin for encoding
+
+async function myMemoryChunk(chunk) {
+  const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=en|no`);
   const data = await res.json();
+  if (String(data?.responseStatus) !== '200') return null;
   return data?.responseData?.translatedText || null;
+}
+
+// Splits on sentence boundaries and greedily packs them into <=450-char
+// chunks, so scene-length paragraphs still work through MyMemory (which
+// hard-caps a single query at 500 chars) when used as the fallback.
+function splitIntoChunks(text) {
+  const sentences = text.match(/[^.!?]+[.!?]+(\s+|$)|[^.!?]+$/g) || [text];
+  const chunks = [];
+  let current = '';
+  for (const sentence of sentences) {
+    if (current && (current + sentence).length > MYMEMORY_MAX_CHARS) {
+      chunks.push(current.trim());
+      current = '';
+    }
+    current += sentence;
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks;
+}
+
+async function tryMyMemoryBlock(text) {
+  if (text.length <= MYMEMORY_MAX_CHARS) return myMemoryChunk(text);
+
+  const chunks = splitIntoChunks(text);
+  const translatedChunks = [];
+  for (const chunk of chunks) {
+    const translated = await myMemoryChunk(chunk);
+    if (!translated) return null; // one failed chunk - let the caller show an error rather than a gap
+    translatedChunks.push(translated);
+  }
+  return translatedChunks.join(' ');
 }
 
 // Translates a whole paragraph (not single words) - used for the "Norsk"
