@@ -108,7 +108,8 @@ async function onChooseCharacter(characterId) {
   state = {
     chosen_character: characterId,
     current_scene: entryScene,
-    flags: {},
+    // keep seen_intro - choosing a character starts a new playthrough, not a new visitor
+    flags: state.flags?.seen_intro ? { seen_intro: true } : {},
     visited_tribes: entryScene ? [character.tribe_id] : [],
   };
   await saveProgress(state);
