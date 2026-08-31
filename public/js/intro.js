@@ -9,6 +9,7 @@ export function renderIntro(container, onDone) {
 
   container.innerHTML = `
     <div class="intro">
+      <img class="overview-map" src="/assets/images/lore/overview-map.jpg" alt="A map of the world" onerror="this.style.display='none'">
       <h2>About the world</h2>
       ${
         hasVideo

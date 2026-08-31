@@ -47,6 +47,7 @@ function showLoginScreen() {
   const err = params.get('login_error');
   app.innerHTML = `
     <div class="login-box">
+      <img class="cover-art" src="/assets/images/lore/cover-art.jpg" alt="" onerror="this.style.display='none'">
       <h1>The Unmaking</h1>
       <p>Log in with Feide to play and save your progress.</p>
       ${err ? `<p class="error">Login failed: ${err}</p>` : ''}
