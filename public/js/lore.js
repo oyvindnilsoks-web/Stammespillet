@@ -7,7 +7,7 @@ const DOCS = {
   bibel: {
     label: 'Chronicle of the Clans',
     url: '/docs/world-lore.md',
-    image: '/assets/images/lore/world_map.jpg',
+    image: null,
     demangle: false,
   },
   song: {
@@ -49,7 +49,10 @@ export async function renderLore(container, initialKey = 'bibel') {
     });
     body.innerHTML = 'Loading...';
     const html = await loadDoc(key);
-    body.innerHTML = `<img class="lore-cover" src="${DOCS[key].image}" alt="${DOCS[key].label}">${html}`;
+    const cover = DOCS[key].image
+      ? `<img class="lore-cover" src="${DOCS[key].image}" alt="${DOCS[key].label}">`
+      : '';
+    body.innerHTML = `${cover}${html}`;
   }
 
   container.querySelectorAll('.lore-tab').forEach((btn) => {
