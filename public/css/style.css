@@ -185,6 +185,30 @@ nav a#nav-logout {
 }
 .tr-word:hover { border-bottom-color: var(--accent); color: var(--accent); }
 
+.no-summary-wrap { display: inline-block; margin: 0.5rem 0 1rem; }
+.lang-btn {
+  background: transparent;
+  border: 1px solid var(--muted);
+  color: var(--muted-text);
+  font-size: 0.85rem;
+  padding: 0.35rem 0.7rem;
+  margin: 0.5rem 0.4rem 1rem 0;
+}
+.lang-btn:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
+.speaker-btn { padding: 0.35rem 0.55rem; }
+.lang-summary {
+  display: block;
+  margin-top: 0.6rem;
+  padding: 0.75rem 1rem;
+  background: var(--panel);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  color: var(--muted-text);
+  font-style: italic;
+  white-space: pre-wrap;
+}
+.lang-summary .speaker-btn { display: block; margin-top: 0.5rem; font-style: normal; }
+
 .translate-popup {
   position: absolute;
   z-index: 100;

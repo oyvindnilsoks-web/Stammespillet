@@ -1,5 +1,5 @@
 import { imageUrl } from './content.js';
-import { translatable } from './translate.js';
+import { translatable, renderReadInNorwegian, renderListenButton } from './translate.js';
 
 function escapeHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -65,7 +65,7 @@ export function renderScene(container, { scene, tribe }, onChoice) {
       ${imgTag(scene.image, scene.title)}
       <h2>${scene.title || ''}</h2>
       ${tribe ? `<p class="muted">${tribe.name}</p>` : ''}
-      <p class="scene-text">${translatable(escapeHtml(scene.text || ''))}</p>
+      <p class="scene-text" id="scene-text-anchor">${translatable(escapeHtml(scene.text || ''))}</p>
       ${
         scene.is_ending
           ? `<p class="ending-label">— The End —</p>
@@ -77,6 +77,9 @@ export function renderScene(container, { scene, tribe }, onChoice) {
       }
     </div>
   `;
+
+  const listenBtn = renderListenButton(container.querySelector('#scene-text-anchor'), scene.text || '');
+  renderReadInNorwegian(listenBtn, scene.text || '');
 
   if (scene.is_ending) {
     container.querySelector('#credits-btn').addEventListener('click', () => onChoice('CREDITS'));
