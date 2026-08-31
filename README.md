@@ -15,10 +15,14 @@ Nettbasert: hostet på **Netlify**, med **Feide**-innlogging (kun for å
 identifisere eleven og lagre fremgang) og **Supabase** som lagring for
 innhold og elevfremgang.
 
+**Live på https://stammespillet.netlify.app** (testinnlogging, siden Feide
+ikke er koblet på ennå).
+
 ## Status per nå
 
-**Spillmotoren er bygget og testet lokalt, men ikke deployet til
-produksjon ennå.** Se punktene under.
+**Spillmotoren er live på Netlify og testet i produksjon**, inkludert en
+komplett testhistorie (12 scener, Mountain Clan) elevene kan spille gjennom
+nå. Se punktene under.
 
 ### Ferdig og verifisert
 - Supabase-database opprettet med skjema for `tribes`, `characters`,
@@ -100,22 +104,37 @@ produksjon ennå.** Se punktene under.
   én delegert lytter på `#app` i `main.js`, så den virker uansett hvilken
   visning som er aktiv.
 
+- **Testhistorie for Mountain Clan** (`char_fjell_demo` "Sella Ironvein" +
+  12 scener med id-prefiks `scene_fjell_`): en fullstendig, spillbar
+  historie i den faktiske verdenen – ikke placeholder-tåke/landsby-tekst.
+  Bruker `Elder Bram`/`Torv`/`Kettil` som birolle-NPCer (kun i scenetekst,
+  ingen egne rader). Struktur: 3 forgreiningspunkter (3–4 valg som
+  konvergerer til samme neste scene), én sideplott-scene
+  (`scene_fjell_side_torv`, `plot='tribe_fjell'`), én tidlig alternativ
+  slutt, og et klimaks med 4 valg som hver fører til sin egen slutt (5
+  slutter totalt). Satt inn direkte i Supabase, ingen kodeendring krevd.
+- **Fant og fikset en ekte bug** under produksjonstesting: å velge karakter
+  nullstilte `flags`-objektet fullstendig, inkludert `seen_intro` – så
+  introvideoen ble tvunget fram på nytt selv etter en fullført
+  gjennomspilling. Fikset i `onChooseCharacter` (`public/js/main.js`).
+
 ### Gjenstår
-1. **Deploy til produksjon** – blokkert av at Netlify-kontoen har nådd
-   grensen for bygge-kreditter denne perioden. Koden er klar; deploy kan
-   kjøres så snart kreditter/plan er ordnet (se "Deploy" under).
-2. **Ekte Feide-oppkobling** – venter på at Steinkjer kommune setter opp
+1. **Ekte Feide-oppkobling** – venter på at Steinkjer kommune setter opp
    sin interne Feide-tjeneste og gir `issuer`-URL + client-ID/secret.
    Motoren er allerede bygget for standard OIDC discovery, så dette er kun
-   miljøvariabler, ingen kodeendring (se `SETUP.md`).
-3. **Faktisk spillinnhold** – kun eksempeldata er lagt inn, bevisst, for å
-   teste motoren (se "Ikke gjør ennå" i `docs/briefs/01_initial_brief.md`). Ekte
-   stammer/karakterer/scener legges inn i Supabase-tabellene når elevenes
-   engelske tekster er klare.
-4. **Lydfiler og kartlagerteam-navn** – legg ekte spor i
+   miljøvariabler, ingen kodeendring (se `SETUP.md`). Fram til da kjører
+   produksjonssiden med `ENABLE_DEV_LOGIN=true` (testinnlogging) – **husk å
+   sette denne til `false` når ekte Feide er på plass**, siden testinnlogging
+   ikke skal stå åpen i et ekte klasserom.
+2. **Faktisk spillinnhold fra elevene** – Mountain Clan har nå en
+   fullstendig testhistorie (se over), men de fire andre klanene
+   (Water/City/Trader/Forest) og de gamle test-stammene
+   (Nordmyr/Solvang) venter fortsatt på elevenes egne
+   karakterer/scener/sideplott.
+3. **Lydfiler og kartlagerteam-navn** – legg ekte spor i
    `public/assets/audio/` og fyll inn navnene i `MAP_TEAM`/`CLASS_NAME`
    øverst i `public/js/credits.js`.
-5. **Introvideo-ID** – fyll inn `INTRO_VIDEO_ID` øverst i
+4. **Introvideo-ID** – fyll inn `INTRO_VIDEO_ID` øverst i
    `public/js/intro.js` når videoen er lastet opp som "unlisted" på
    YouTube.
 
@@ -196,16 +215,23 @@ Se [`SETUP.md`](SETUP.md) for full liste over miljøvariabler,
 
 ## Deploy
 
-Koden og Netlify-nettstedet er klare. Når bygge-kreditter/plan er ordnet:
+**Live på https://stammespillet.netlify.app.** Redeploy etter endringer:
 
 ```bash
 npx netlify link --id 151f419c-de4a-4c3c-b6e3-981594752180
 npx netlify deploy --prod
 ```
 
+Miljøvariabler (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+`SESSION_SECRET`, `ENABLE_DEV_LOGIN`) er satt direkte i Netlify sine
+prosjektinnstillinger – ikke i `netlify.toml`. **Merk:** endringer i
+miljøvariabler krever en ny deploy før de faktisk tas i bruk av de kjørende
+funksjonene.
+
 Husk å be Steinkjer kommune registrere
 `https://stammespillet.netlify.app/api/auth/callback` (eller endelig
-produksjonsdomene) som redirect-URI hos Feide-tjenesten før den kobles på.
+produksjonsdomene) som redirect-URI hos Feide-tjenesten før den kobles på –
+og sett `ENABLE_DEV_LOGIN` til `false` i samme slengen.
 
 ## Mappestruktur for innhold (`data/`)
 
