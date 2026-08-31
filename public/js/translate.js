@@ -94,25 +94,45 @@ export function translatable(text) {
 
 const blockCache = new Map();
 
-// Translates a whole paragraph (not single words) - used for the "Read in
-// Norwegian" button on a page of text. Google's endpoint handles this far
-// better than MyMemory, which is built for short strings.
+async function tryGoogleBlock(text) {
+  const res = await fetch(
+    `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=no&dt=t&q=${encodeURIComponent(text)}`
+  );
+  const data = await res.json();
+  return data?.[0]?.map((segment) => segment[0]).join('') || null;
+}
+
+async function tryMyMemoryBlock(text) {
+  const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|no`);
+  const data = await res.json();
+  return data?.responseData?.translatedText || null;
+}
+
+// Translates a whole paragraph (not single words) - used for the "Norsk"
+// popup on a page of text. Tries Google's endpoint first (generally better
+// for full sentences), then falls back to MyMemory if that fails or is
+// rate-limited. A failed attempt is never cached, so the next click retries
+// instead of getting stuck on a transient error.
 export async function translateBlock(text) {
   const key = text.trim();
   if (!key) return '';
   if (blockCache.has(key)) return blockCache.get(key);
 
-  try {
-    const res = await fetch(
-      `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=no&dt=t&q=${encodeURIComponent(key)}`
-    );
-    const data = await res.json();
-    const translated = data?.[0]?.map((segment) => segment[0]).join('') || null;
-    blockCache.set(key, translated);
-    return translated;
-  } catch {
-    return null;
+  let result = null;
+  for (const attempt of [tryGoogleBlock, tryMyMemoryBlock]) {
+    try {
+      const translated = await attempt(key);
+      if (translated) {
+        result = translated;
+        break;
+      }
+    } catch {
+      // try the next provider
+    }
   }
+
+  if (result) blockCache.set(key, result);
+  return result;
 }
 
 // Simple built-in read-aloud (Web Speech API) - no service, no key, works
