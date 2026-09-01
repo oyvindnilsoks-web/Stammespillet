@@ -1,5 +1,6 @@
 import { renderMarkdown } from './markdown.js';
 import { renderInlineLangControls } from './translate.js';
+import { STORY_LEVELS } from './story-levels.js';
 
 // Pure background reading material - not connected to Supabase, spillfremgang,
 // or student-authored content. Just displays the two planning/lore documents
@@ -16,6 +17,10 @@ const DOCS = {
     url: '/docs/the-long-song.md',
     image: '/assets/images/lore/long_song_placeholder.svg',
     demangle: true,
+  },
+  levels: {
+    label: 'The Story (4 Levels)',
+    custom: true,
   },
 };
 
@@ -48,6 +53,12 @@ export async function renderLore(container, initialKey = 'bibel') {
     container.querySelectorAll('.lore-tab').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.key === key);
     });
+
+    if (DOCS[key].custom) {
+      renderStoryLevels(body);
+      return;
+    }
+
     body.innerHTML = 'Loading...';
     const html = await loadDoc(key);
     const cover = DOCS[key].image
@@ -64,6 +75,61 @@ export async function renderLore(container, initialKey = 'bibel') {
       const text = p.textContent.trim();
       if (text) renderInlineLangControls(p, text);
     });
+  }
+
+  // "The Story (4 Levels)" - the same backstory retold at four depths, so
+  // weaker and stronger readers can each pick a version that fits them.
+  // Not markdown-backed like the other tabs: it has its own level switcher
+  // and a word list under every level.
+  function renderStoryLevels(body, activeIdx = 0) {
+    body.innerHTML = `
+      <p class="muted lore-levels-intro">The same story, told four times - a little longer and a little deeper each time. Pick the version that fits you.</p>
+      <div class="level-tabs" id="level-tabs"></div>
+      <div id="level-panel"></div>
+    `;
+
+    const tabsWrap = body.querySelector('#level-tabs');
+    const panel = body.querySelector('#level-panel');
+
+    STORY_LEVELS.forEach((lvl, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'level-tab';
+      btn.type = 'button';
+      btn.textContent = lvl.label;
+      btn.title = lvl.name;
+      btn.addEventListener('click', () => paintLevel(i));
+      tabsWrap.appendChild(btn);
+    });
+
+    function paintLevel(i) {
+      [...tabsWrap.children].forEach((btn, idx) => btn.classList.toggle('active', idx === i));
+      const lvl = STORY_LEVELS[i];
+      const glossaryItems = lvl.glossary
+        .map(([term, def]) => `
+          <div class="glossary-item">
+            <span class="glossary-term">${term}</span>
+            <p class="glossary-def">${def}</p>
+          </div>
+        `)
+        .join('');
+
+      panel.innerHTML = `
+        <h3>${lvl.title}</h3>
+        <p class="muted level-meta">${lvl.name} &middot; ~${lvl.words} words &middot; ${lvl.minutes} min read</p>
+        <div class="story-text">${lvl.paragraphs.map((p) => `<p>${p}</p>`).join('')}</div>
+        <div class="glossary-box">
+          <div class="glossary-title">Word List</div>
+          <div class="glossary-grid">${glossaryItems}</div>
+        </div>
+      `;
+
+      panel.querySelectorAll('.story-text p').forEach((p) => {
+        const text = p.textContent.trim();
+        if (text) renderInlineLangControls(p, text);
+      });
+    }
+
+    paintLevel(activeIdx);
   }
 
   container.querySelectorAll('.lore-tab').forEach((btn) => {
