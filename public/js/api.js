@@ -19,6 +19,20 @@ export async function devLogin(testId) {
   return res.json();
 }
 
+// The main login while Feide is not yet connected: a student just types a
+// name. See netlify/functions/auth-name-login.js for how the session is
+// created from it.
+export async function nameLogin(name) {
+  const res = await fetch('/api/auth/name-login', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) throw new Error('Login failed - please try again.');
+  return res.json();
+}
+
 export function loginUrl() {
   return '/api/auth/login';
 }

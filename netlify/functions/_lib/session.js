@@ -11,8 +11,11 @@ function getSecret() {
   return new TextEncoder().encode(secret);
 }
 
-// feideId must be a stable, unique, non-personal identifier from the OIDC id_token
-// (the `sub` claim), never a name, birthdate, or other personal data.
+// feideId is the session's identity key. While Feide is not connected it is
+// the student's self-chosen login name, prefixed "name:" (see
+// auth-name-login.js). Once Feide is wired up it should become the OIDC
+// id_token's `sub` claim instead - a stable, unique, non-personal identifier,
+// never a name, birthdate, or other personal data.
 async function createSessionToken(feideId) {
   return new SignJWT({ sub: feideId })
     .setProtectedHeader({ alg: 'HS256' })

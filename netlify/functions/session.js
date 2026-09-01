@@ -9,9 +9,13 @@ exports.handler = async (event) => {
 
   try {
     const feideId = await verifySessionToken(token);
-    // Never expose the raw feide_id to the client - just a short, non-reversible
-    // display tag so the UI can show "logged in as ..." without leaking the id.
-    const displayTag = crypto.createHash('sha256').update(feideId).digest('hex').slice(0, 8);
+    // "name:..." ids are the self-chosen login name (nothing sensitive to
+    // hide), so show it as-is. Anything else - a future real Feide `sub`
+    // claim - stays a short, non-reversible display tag so the UI can show
+    // "logged in as ..." without leaking the id.
+    const displayTag = feideId.startsWith('name:')
+      ? feideId.slice('name:'.length)
+      : crypto.createHash('sha256').update(feideId).digest('hex').slice(0, 8);
     return { statusCode: 200, body: JSON.stringify({ authenticated: true, displayTag }) };
   } catch {
     return { statusCode: 200, body: JSON.stringify({ authenticated: false }) };

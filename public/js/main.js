@@ -1,4 +1,4 @@
-import { getSession, loginUrl, logoutUrl, loadProgress, saveProgress } from './api.js';
+import { getSession, nameLogin, logoutUrl, loadProgress, saveProgress } from './api.js';
 import { loadAllContent } from './content.js';
 import { renderCharacterSelect, renderScene, findEntryScene, applyConsequences } from './game.js';
 import { renderLexicon } from './lexicon.js';
@@ -43,17 +43,33 @@ function renderNav(authenticated, displayTag) {
 }
 
 function showLoginScreen() {
-  const params = new URLSearchParams(window.location.search);
-  const err = params.get('login_error');
   app.innerHTML = `
     <div class="login-box">
       <img class="cover-art" src="/assets/images/lore/cover-art.jpg" alt="" onerror="this.style.display='none'">
       <h1>The Unmaking</h1>
-      <p>Log in with Feide to play and save your progress.</p>
-      ${err ? `<p class="error">Login failed: ${err}</p>` : ''}
-      <a class="choice-btn" href="${loginUrl()}">Log in with Feide</a>
+      <p>Type your name to play and save your progress.</p>
+      <form id="login-form">
+        <label for="login-name" class="muted">Your name</label>
+        <input id="login-name" name="name" placeholder="e.g. Kari S" autocomplete="off" required />
+        <button type="submit" class="choice-btn">Log in</button>
+      </form>
+      <p id="login-error" class="error" hidden></p>
     </div>
   `;
+
+  const form = document.getElementById('login-form');
+  const errorEl = document.getElementById('login-error');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorEl.hidden = true;
+    try {
+      await nameLogin(document.getElementById('login-name').value);
+      window.location.reload();
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.hidden = false;
+    }
+  });
 }
 
 function showLexicon() {
