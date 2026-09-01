@@ -5,7 +5,7 @@ import { renderLexicon } from './lexicon.js';
 import { renderGallery } from './gallery.js';
 import { renderCredits } from './credits.js';
 import { renderIntro } from './intro.js';
-import { renderLore } from './lore.js';
+import { renderLore, loreRouteFromHash } from './lore.js';
 import { playForScene, playCredits, renderAudioControl } from './audio.js';
 import { enableTranslation } from './translate.js';
 
@@ -37,7 +37,7 @@ function renderNav(authenticated, displayTag) {
   document.getElementById('nav-play').addEventListener('click', showGameOrSelect);
   document.getElementById('nav-lexicon').addEventListener('click', showLexicon);
   document.getElementById('nav-gallery').addEventListener('click', showGallery);
-  document.getElementById('nav-lore').addEventListener('click', showLore);
+  document.getElementById('nav-lore').addEventListener('click', () => showLore());
   document.getElementById('nav-intro').addEventListener('click', () => showIntro(showGameOrSelect));
   renderAudioControl(document.getElementById('nav-audio'));
 }
@@ -80,8 +80,8 @@ function showGallery() {
   renderGallery(app, content);
 }
 
-function showLore() {
-  renderLore(app);
+function showLore(key, level) {
+  renderLore(app, key, level);
 }
 
 function showCredits() {
@@ -191,6 +191,15 @@ async function init() {
         visited_tribes: progress.visited_tribes || [],
       }
     : { chosen_character: null, current_scene: null, flags: {}, visited_tribes: [] };
+
+  // A direct link straight into World Lore (e.g. #lore-levels-2, handed to
+  // one reading group) skips the intro gate - the student came here to
+  // read, not to play, so don't force the intro video in front of it.
+  const loreRoute = loreRouteFromHash(window.location.hash);
+  if (loreRoute) {
+    showLore(loreRoute.key, loreRoute.level);
+    return;
+  }
 
   if (!state.flags?.seen_intro) {
     showIntro(markIntroSeenAndContinue);

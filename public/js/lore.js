@@ -34,7 +34,26 @@ async function loadDoc(key) {
   return cache[key];
 }
 
-export async function renderLore(container, initialKey = 'bibel') {
+// Deep link into a specific World Lore document (and, for the reading-ladder
+// tab, a specific level) via the URL hash - #lore, #lore-song,
+// #lore-levels, #lore-levels-3 (1-indexed). Lets a teacher hand out one
+// direct link per reading level instead of "open World Lore, click the
+// third tab, click Level 3".
+export function loreRouteFromHash(hash) {
+  const raw = (hash || '').replace(/^#/, '');
+  if (!raw.startsWith('lore')) return null;
+  const parts = raw.split('-');
+  const key = parts[1] && DOCS[parts[1]] ? parts[1] : 'bibel';
+  const level = key === 'levels' && parts[2] ? Math.max(0, parseInt(parts[2], 10) - 1) : 0;
+  return { key, level };
+}
+
+function setLoreHash(key, level) {
+  const suffix = key === 'bibel' ? '' : `-${key}` + (key === 'levels' ? `-${level + 1}` : '');
+  history.replaceState(null, '', `#lore${suffix}`);
+}
+
+export async function renderLore(container, initialKey = 'bibel', initialLevel = 0) {
   const tabs = Object.entries(DOCS)
     .map(([key, doc]) => `<button class="lore-tab" data-key="${key}">${doc.label}</button>`)
     .join('');
@@ -49,13 +68,14 @@ export async function renderLore(container, initialKey = 'bibel') {
 
   const body = container.querySelector('#lore-body');
 
-  async function showDoc(key) {
+  async function showDoc(key, level = 0) {
     container.querySelectorAll('.lore-tab').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.key === key);
     });
+    setLoreHash(key, level);
 
     if (DOCS[key].custom) {
-      renderStoryLevels(body);
+      renderStoryLevels(body, level);
       return;
     }
 
@@ -103,6 +123,7 @@ export async function renderLore(container, initialKey = 'bibel') {
 
     function paintLevel(i) {
       [...tabsWrap.children].forEach((btn, idx) => btn.classList.toggle('active', idx === i));
+      setLoreHash('levels', i);
       const lvl = STORY_LEVELS[i];
       const glossaryItems = lvl.glossary
         .map(([term, def]) => `
@@ -136,5 +157,5 @@ export async function renderLore(container, initialKey = 'bibel') {
     btn.addEventListener('click', () => showDoc(btn.dataset.key));
   });
 
-  await showDoc(initialKey);
+  await showDoc(initialKey, initialLevel);
 }
