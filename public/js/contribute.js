@@ -15,20 +15,52 @@ let data;
 let tab = 'village';
 const editing = { village: null, villager: null };
 const form = { village: {}, villager: {} };
+const restored = { village: false, villager: false };
+let draftState = { ok: true, savedAt: null };
 
+// Drafts are keyed per logged-in student, so on a shared classroom PC one
+// student never sees - or overwrites - another student's unsent text.
 function draftKey(kind) {
+  return `contribute-draft:${data.me || 'unknown'}:${kind}:${editing[kind]?.id || 'new'}`;
+}
+
+// Key format used before drafts were stored per student.
+function legacyDraftKey(kind) {
   return `contribute-draft-${kind}-${editing[kind]?.id || 'new'}`;
+}
+
+function storageWorks() {
+  try {
+    localStorage.setItem('contribute-storage-test', '1');
+    localStorage.removeItem('contribute-storage-test');
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function saveDraft(kind) {
   try {
     localStorage.setItem(draftKey(kind), JSON.stringify(form[kind]));
-  } catch {}
+    draftState = { ok: true, savedAt: new Date() };
+  } catch {
+    draftState = { ok: false, savedAt: null };
+  }
+  showDraftState();
 }
 
 function loadDraft(kind) {
   try {
-    return JSON.parse(localStorage.getItem(draftKey(kind)) || 'null');
+    let raw = localStorage.getItem(draftKey(kind));
+    if (raw === null) {
+      const legacy = localStorage.getItem(legacyDraftKey(kind));
+      if (legacy !== null) {
+        localStorage.setItem(draftKey(kind), legacy);
+        localStorage.removeItem(legacyDraftKey(kind));
+        raw = legacy;
+      }
+    }
+    return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
@@ -38,6 +70,22 @@ function clearDraft(kind) {
   try {
     localStorage.removeItem(draftKey(kind));
   } catch {}
+}
+
+function showDraftState() {
+  const el = root?.querySelector('#draft-status');
+  if (!el) return;
+  if (!draftState.ok) {
+    el.textContent = "This browser can't save your text - send it before you close the page!";
+    el.className = 'draft-status error';
+  } else if (draftState.savedAt) {
+    const time = draftState.savedAt.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' });
+    el.textContent = `✓ Saved on this computer ${time}`;
+    el.className = 'draft-status';
+  } else {
+    el.textContent = '';
+    el.className = 'draft-status';
+  }
 }
 
 function formFromSubmission(kind, sub) {
@@ -54,12 +102,16 @@ function formFromSubmission(kind, sub) {
 
 function startEditing(kind, sub) {
   editing[kind] = sub;
-  form[kind] = loadDraft(kind) || formFromSubmission(kind, sub);
+  const draft = loadDraft(kind);
+  restored[kind] = !!draft;
+  form[kind] = draft || formFromSubmission(kind, sub);
 }
 
 function startNew(kind) {
   editing[kind] = null;
-  form[kind] = loadDraft(kind) || (kind === 'village' ? { type: 'village', charter: {}, map: null } : { type: 'villager', charter: {}, tribe_id: '' });
+  const draft = loadDraft(kind);
+  restored[kind] = !!draft;
+  form[kind] = draft || (kind === 'village' ? { type: 'village', charter: {}, map: null } : { type: 'villager', charter: {}, tribe_id: '' });
 }
 
 function pickInitialForms() {
@@ -167,14 +219,21 @@ function renderForm() {
 
   root.querySelector('#contribute-form').innerHTML = `
     ${isEditing ? `<p class="editing-note">Editing: <strong>${escapeHtml(editing[kind].name)}</strong></p>` : ''}
+    ${
+      restored[kind]
+        ? `<p class="restored-note">Your unsent text was brought back from this computer. Remember to press <strong>${isEditing ? 'Save changes' : 'Send to teacher'}</strong> when you are done. <span class="no-help">Teksten du ikke har sendt ennå er hentet tilbake.</span></p>`
+        : ''
+    }
     ${top}
     ${renderSections(kind)}
     <div class="submit-row">
       <button class="choice-btn" id="send-btn" ${data.open ? '' : 'disabled'}>${isEditing ? 'Save changes' : 'Send to teacher'}</button>
       <span id="send-status" class="muted" role="status"></span>
+      <span id="draft-status" class="draft-status" role="status"></span>
     </div>`;
 
   wireForm(kind);
+  showDraftState();
 }
 
 function wireForm(kind) {
@@ -304,6 +363,7 @@ export async function renderContribute(container) {
     root.innerHTML = `<p class="error">${escapeHtml(err.message)}</p>`;
     return;
   }
+  draftState = { ok: storageWorks(), savedAt: null };
   pickInitialForms();
   renderPage();
 }

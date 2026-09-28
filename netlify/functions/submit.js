@@ -80,6 +80,7 @@ async function handleGet(supabase, user) {
   if (err) return json(500, { error: err.message });
 
   return json(200, {
+    me: user,
     open,
     villages: villagesRes.data,
     mine: { villages: myVillagesRes.data, villagers: myVillagersRes.data },

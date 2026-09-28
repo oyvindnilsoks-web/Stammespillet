@@ -379,7 +379,24 @@ input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-
   pointer-events: none;
 }
 
-.submit-row { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin: 1.5rem 0 3rem; }
+.submit-row {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin: 1.5rem 0 3rem;
+  padding: 0.75rem 1rem;
+  background: var(--panel);
+  border: 1px solid var(--muted);
+  border-radius: 10px;
+  box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.35);
+}
+.draft-status { margin-left: auto; font-family: system-ui, sans-serif; font-size: 0.85rem; color: #9fd09f; }
+.draft-status.error { color: var(--error); font-weight: bold; }
+.restored-note { background: var(--panel); border-left: 3px solid var(--accent); padding: 0.6rem 0.9rem; border-radius: 6px; }
 
 /* ---------- Village media in the Lexicon ---------- */
 

@@ -77,6 +77,9 @@ export async function sendSubmission(payload) {
     body: JSON.stringify(payload),
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401) {
+    throw new Error('You are logged out. Log in again with the same name - your text is saved on this computer.');
+  }
   if (!res.ok) throw new Error(data.error || 'Could not send - please try again.');
   return data;
 }
