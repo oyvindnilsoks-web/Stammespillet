@@ -92,8 +92,12 @@ export function enableTranslation(root) {
 // Wraps each word in a clickable span. Call this on plain text BEFORE any
 // HTML-escaping/markdown formatting is applied around it, since the regex
 // only recognises bare letters and won't skip existing tags.
+// Expects already-escaped text; HTML entities are matched first so words
+// like "amp" inside "&amp;" are never wrapped.
 export function translatable(text) {
-  return text.replace(/[A-Za-z']+/g, (word) => `<span class="tr-word" data-word="${word}">${word}</span>`);
+  return text.replace(/&(?:[a-z]+|#\d+);|[A-Za-z']+/g, (m) =>
+    m.startsWith('&') ? m : `<span class="tr-word" data-word="${m}">${m}</span>`
+  );
 }
 
 const blockCache = new Map();
@@ -204,8 +208,13 @@ export function renderListenButton(afterEl, text) {
   return btn;
 }
 
-function escapeHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+export function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 let noPopupEl = null;

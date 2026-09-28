@@ -1,3 +1,5 @@
+import { escapeHtml } from './translate.js';
+
 // Fill in the 5 real names of the map-making team here (just 5 fixed
 // names - no separate database table needed for this).
 const MAP_TEAM = ['[Name 1]', '[Name 2]', '[Name 3]', '[Name 4]', '[Name 5]'];
@@ -10,11 +12,11 @@ export function renderCredits(container, { tribes, characters }, onBack) {
     .map((t) => {
       const members = [...characters.values()].filter((c) => c.tribe_id === t.id);
       const rows = members
-        .map((c) => `<li>${c.student_name || c.name}${c.role ? ` — ${c.role}` : ''}</li>`)
+        .map((c) => `<li>${escapeHtml(c.student_name || c.name)}${c.role ? ` — ${escapeHtml(c.role)}` : ''}</li>`)
         .join('');
       return `
         <section class="credits-tribe">
-          <h3>${t.name}</h3>
+          <h3>${escapeHtml(t.name)}</h3>
           <ul>${rows || '<li class="muted">No characters added</li>'}</ul>
         </section>`;
     })

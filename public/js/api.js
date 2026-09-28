@@ -59,3 +59,24 @@ export async function saveProgress(state) {
   if (!res.ok) throw new Error('Failed to save progress');
   return res.json();
 }
+
+// Student contributions (village + villager forms). The server only returns
+// the logged-in student's own submissions, plus the village list for the
+// villager form's drop-down.
+export async function loadSubmissions() {
+  const res = await fetch('/api/submit', { credentials: 'same-origin' });
+  if (!res.ok) throw new Error('Could not load your submissions.');
+  return res.json();
+}
+
+export async function sendSubmission(payload) {
+  const res = await fetch('/api/submit', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Could not send - please try again.');
+  return data;
+}

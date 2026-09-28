@@ -1,7 +1,15 @@
 import { imageUrl } from './content.js';
-import { translatable, renderReadInNorwegian, renderListenButton, renderInlineLangControls } from './translate.js';
+import {
+  escapeHtml,
+  translatable,
+  renderReadInNorwegian,
+  renderListenButton,
+  renderInlineLangControls,
+} from './translate.js';
 
-function escapeHtml(s) {
+// Text-node escaping only - leaves apostrophes alone so contractions like
+// "don't" stay one click-to-translate word.
+function escapeText(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
@@ -27,7 +35,7 @@ export function findEntryScene(tribeId, scenes) {
 function imgTag(path, alt) {
   const url = imageUrl(path);
   if (!url) return '';
-  return `<img class="scene-image" src="${url}" alt="${alt}" onerror="this.style.display='none'">`;
+  return `<img class="scene-image" src="${escapeHtml(url)}" alt="${escapeHtml(alt)}" onerror="this.style.display='none'">`;
 }
 
 export function renderCharacterSelect(container, { characters, tribes }, onChoose) {
@@ -35,12 +43,12 @@ export function renderCharacterSelect(container, { characters, tribes }, onChoos
     .map((c) => {
       const tribe = tribes.get(c.tribe_id);
       return `
-        <button class="character-card" data-id="${c.id}">
+        <button class="character-card" data-id="${escapeHtml(c.id)}">
           ${imgTag(c.image, c.name)}
-          <h3>${c.name}</h3>
-          <p class="muted">${c.role || ''}${tribe ? ` · ${tribe.name}` : ''}</p>
-          <p>${c.description || ''}</p>
-          ${c.goal ? `<p class="muted">Goal: ${c.goal}</p>` : ''}
+          <h3>${escapeHtml(c.name)}</h3>
+          <p class="muted">${escapeHtml(c.role || '')}${tribe ? ` · ${escapeHtml(tribe.name)}` : ''}</p>
+          <p>${escapeHtml(c.description || '')}</p>
+          ${c.goal ? `<p class="muted">Goal: ${escapeHtml(c.goal)}</p>` : ''}
         </button>`;
     })
     .join('');
@@ -60,7 +68,7 @@ export function renderScene(container, { scene, tribe }, onChoice) {
     .map(
       (c, i) => `
         <div class="choice-row">
-          <button class="choice-btn" data-idx="${i}">${escapeHtml(c.text)}</button>
+          <button class="choice-btn" data-idx="${i}">${escapeText(c.text)}</button>
         </div>`
     )
     .join('');
@@ -68,9 +76,9 @@ export function renderScene(container, { scene, tribe }, onChoice) {
   container.innerHTML = `
     <div class="scene">
       ${imgTag(scene.image, scene.title)}
-      <h2>${scene.title || ''}</h2>
-      ${tribe ? `<p class="muted">${tribe.name}</p>` : ''}
-      <p class="scene-text" id="scene-text-anchor">${translatable(escapeHtml(scene.text || ''))}</p>
+      <h2>${escapeHtml(scene.title || '')}</h2>
+      ${tribe ? `<p class="muted">${escapeHtml(tribe.name)}</p>` : ''}
+      <p class="scene-text" id="scene-text-anchor">${translatable(escapeText(scene.text || ''))}</p>
       ${
         scene.is_ending
           ? `<p class="ending-label">— The End —</p>

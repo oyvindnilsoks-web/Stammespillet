@@ -6,6 +6,9 @@
 [functions]
   node_bundler = "esbuild"
 
+[functions.keepalive]
+  schedule = "@daily"
+
 [[redirects]]
   from = "/api/auth/login"
   to = "/.netlify/functions/auth-login"
@@ -39,6 +42,21 @@
 [[redirects]]
   from = "/api/progress"
   to = "/.netlify/functions/progress"
+  status = 200
+
+[[redirects]]
+  from = "/api/submit"
+  to = "/.netlify/functions/submit"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/login"
+  to = "/.netlify/functions/admin-login"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin"
+  to = "/.netlify/functions/admin"
   status = 200
 
 [[headers]]

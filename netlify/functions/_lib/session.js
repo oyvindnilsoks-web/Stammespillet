@@ -29,4 +29,37 @@ async function verifySessionToken(token) {
   return payload.sub;
 }
 
-module.exports = { SESSION_COOKIE, SESSION_TTL_SECONDS, createSessionToken, verifySessionToken };
+// Teacher admin session: same secret, but a separate cookie and an
+// `aud: 'admin'` claim, so a student's session token can never pass as admin.
+const ADMIN_COOKIE = 'stammespillet_admin';
+const ADMIN_TTL_SECONDS = 8 * 60 * 60;
+
+async function createAdminToken() {
+  return new SignJWT({ sub: 'admin' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setAudience('admin')
+    .setIssuedAt()
+    .setExpirationTime(`${ADMIN_TTL_SECONDS}s`)
+    .sign(getSecret());
+}
+
+async function isAdminToken(token) {
+  if (!token) return false;
+  try {
+    await jwtVerify(token, getSecret(), { audience: 'admin' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+module.exports = {
+  SESSION_COOKIE,
+  SESSION_TTL_SECONDS,
+  createSessionToken,
+  verifySessionToken,
+  ADMIN_COOKIE,
+  ADMIN_TTL_SECONDS,
+  createAdminToken,
+  isAdminToken,
+};

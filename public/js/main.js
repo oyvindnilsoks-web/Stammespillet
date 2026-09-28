@@ -5,9 +5,9 @@ import { renderLexicon } from './lexicon.js';
 import { renderGallery } from './gallery.js';
 import { renderCredits } from './credits.js';
 import { renderIntro } from './intro.js';
-import { renderLore, loreRouteFromHash } from './lore.js';
+import { renderContribute } from './contribute.js';
 import { playForScene, playCredits, renderAudioControl } from './audio.js';
-import { enableTranslation } from './translate.js';
+import { enableTranslation, escapeHtml } from './translate.js';
 
 const app = document.getElementById('app');
 const nav = document.getElementById('nav');
@@ -25,20 +25,20 @@ function renderNav(authenticated, displayTag) {
     return;
   }
   nav.innerHTML = `
-    <span class="muted">Logged in${displayTag ? ` (${displayTag})` : ''}</span>
+    <span class="muted">Logged in${displayTag ? ` (${escapeHtml(displayTag)})` : ''}</span>
+    <button id="nav-contribute">Contribute</button>
     <button id="nav-play">Play</button>
     <button id="nav-lexicon">Clan Lexicon</button>
     <button id="nav-gallery">Gallery</button>
-    <button id="nav-lore">World Lore</button>
     <button id="nav-intro">Watch the intro</button>
     <span id="nav-audio"></span>
     <a id="nav-logout" href="${logoutUrl()}">Log out</a>
   `;
+  document.getElementById('nav-contribute').addEventListener('click', showContribute);
   document.getElementById('nav-play').addEventListener('click', showGameOrSelect);
   document.getElementById('nav-lexicon').addEventListener('click', showLexicon);
   document.getElementById('nav-gallery').addEventListener('click', showGallery);
-  document.getElementById('nav-lore').addEventListener('click', () => showLore());
-  document.getElementById('nav-intro').addEventListener('click', () => showIntro(showGameOrSelect));
+  document.getElementById('nav-intro').addEventListener('click', () => showIntro(showContribute));
   renderAudioControl(document.getElementById('nav-audio'));
 }
 
@@ -80,8 +80,9 @@ function showGallery() {
   renderGallery(app, content);
 }
 
-function showLore(key, level) {
-  renderLore(app, key, level);
+function showContribute() {
+  playForScene(null);
+  renderContribute(app);
 }
 
 function showCredits() {
@@ -96,7 +97,7 @@ function showIntro(onDone) {
 async function markIntroSeenAndContinue() {
   state = { ...state, flags: { ...state.flags, seen_intro: true } };
   await saveProgress(state);
-  await showGameOrSelect();
+  showContribute();
 }
 
 async function showGameOrSelect() {
@@ -111,7 +112,7 @@ async function showGameOrSelect() {
 function showScene() {
   const scene = content.scenes.get(state.current_scene);
   if (!scene) {
-    app.innerHTML = `<p class="error">Could not find the scene "${state.current_scene}".</p>`;
+    app.innerHTML = `<p class="error">Could not find the scene "${escapeHtml(state.current_scene)}".</p>`;
     return;
   }
   const tribe = content.tribes.get(scene.tribe_id);
@@ -192,24 +193,17 @@ async function init() {
       }
     : { chosen_character: null, current_scene: null, flags: {}, visited_tribes: [] };
 
-  // A direct link straight into World Lore (e.g. #lore-levels-2, handed to
-  // one reading group) skips the intro gate - the student came here to
-  // read, not to play, so don't force the intro video in front of it.
-  const loreRoute = loreRouteFromHash(window.location.hash);
-  if (loreRoute) {
-    showLore(loreRoute.key, loreRoute.level);
-    return;
-  }
-
   if (!state.flags?.seen_intro) {
     showIntro(markIntroSeenAndContinue);
     return;
   }
 
-  await showGameOrSelect();
+  // While the class is collecting villages and villagers, Contribute is the
+  // landing page; Play is one click away in the menu.
+  showContribute();
 }
 
 init().catch((err) => {
   console.error(err);
-  app.innerHTML = `<p class="error">Something went wrong: ${err.message}</p>`;
+  app.innerHTML = `<p class="error">Something went wrong: ${escapeHtml(err.message)}</p>`;
 });
