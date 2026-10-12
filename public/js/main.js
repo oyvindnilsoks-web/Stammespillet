@@ -1,12 +1,9 @@
 import { getSession, nameLogin, loginUrl, logoutUrl, loadProgress, saveProgress } from './api.js';
 import { loadAllContent } from './content.js';
-import { renderCharacterSelect, renderScene, findEntryScene, applyConsequences } from './game.js';
 import { renderLexicon } from './lexicon.js';
 import { renderGallery } from './gallery.js';
-import { renderCredits } from './credits.js';
-import { renderIntro } from './intro.js';
 import { renderContribute } from './contribute.js';
-import { playForScene, playCredits, renderAudioControl } from './audio.js';
+import { startPlay } from './play/index.js';
 import { enableTranslation, escapeHtml } from './translate.js';
 
 const app = document.getElementById('app');
@@ -16,8 +13,9 @@ const nav = document.getElementById('nav');
 // only needs to run once - it keeps working across every view re-render.
 enableTranslation(app);
 
-let content = null; // { tribes, characters, scenes }
+let content = null; // { tribes, characters, scenes, media }
 let state = null; // { chosen_character, current_scene, flags, visited_tribes }
+let stopPlay = null; // stops the running game when the student goes somewhere else
 
 function renderNav(authenticated, displayTag) {
   if (!authenticated) {
@@ -30,16 +28,12 @@ function renderNav(authenticated, displayTag) {
     <button id="nav-play">Play</button>
     <button id="nav-lexicon">Clan Lexicon</button>
     <button id="nav-gallery">Gallery</button>
-    <button id="nav-intro">Watch the intro</button>
-    <span id="nav-audio"></span>
     <a id="nav-logout" href="${logoutUrl()}">Log out</a>
   `;
   document.getElementById('nav-contribute').addEventListener('click', showContribute);
-  document.getElementById('nav-play').addEventListener('click', showGameOrSelect);
+  document.getElementById('nav-play').addEventListener('click', showPlay);
   document.getElementById('nav-lexicon').addEventListener('click', showLexicon);
   document.getElementById('nav-gallery').addEventListener('click', showGallery);
-  document.getElementById('nav-intro').addEventListener('click', () => showIntro(showContribute));
-  renderAudioControl(document.getElementById('nav-audio'));
 }
 
 const LOGIN_ERRORS = {
@@ -107,99 +101,43 @@ function showLoginScreen({ feideEnabled = false, nameLoginEnabled = true } = {})
   });
 }
 
+// Every page except the game goes through here first, so a game that is
+// running does not keep going behind the new page.
+function leavePlay() {
+  if (stopPlay) {
+    stopPlay();
+    stopPlay = null;
+  }
+}
+
 function showLexicon() {
+  leavePlay();
   renderLexicon(app, content);
 }
 
 function showGallery() {
+  leavePlay();
   renderGallery(app, content);
 }
 
 function showContribute() {
-  playForScene(null);
+  leavePlay();
   renderContribute(app);
 }
 
-function showCredits() {
-  playCredits();
-  renderCredits(app, content, showGameOrSelect);
-}
-
-function showIntro(onDone) {
-  renderIntro(app, onDone);
-}
-
-async function markIntroSeenAndContinue() {
-  state = { ...state, flags: { ...state.flags, seen_intro: true } };
-  await saveProgress(state);
-  showContribute();
-}
-
-async function showGameOrSelect() {
-  if (!state?.chosen_character || !state?.current_scene) {
-    playForScene(null);
-    renderCharacterSelect(app, content, onChooseCharacter);
-    return;
+let playVisit = 0;
+async function showPlay() {
+  leavePlay();
+  const visit = ++playVisit;
+  app.innerHTML = '<p>Loading…</p>';
+  try {
+    // New villages the teacher has approved since the page was opened.
+    content = await loadAllContent();
+  } catch {
+    // Play with what is already loaded.
   }
-  showScene();
-}
-
-function showScene() {
-  const scene = content.scenes.get(state.current_scene);
-  if (!scene) {
-    app.innerHTML = `<p class="error">Could not find the scene "${escapeHtml(state.current_scene)}".</p>`;
-    return;
-  }
-  const tribe = content.tribes.get(scene.tribe_id);
-  playForScene(scene.tribe_id);
-  renderScene(app, { scene, tribe }, onChoice);
-}
-
-async function onChooseCharacter(characterId) {
-  const character = content.characters.get(characterId);
-  const entryScene = findEntryScene(character.tribe_id, content.scenes);
-  state = {
-    chosen_character: characterId,
-    current_scene: entryScene,
-    // keep seen_intro - choosing a character starts a new playthrough, not a new visitor
-    flags: state.flags?.seen_intro ? { seen_intro: true } : {},
-    visited_tribes: entryScene ? [character.tribe_id] : [],
-  };
-  await saveProgress(state);
-  showScene();
-}
-
-async function onChoice(choice) {
-  if (choice === 'CREDITS') {
-    showCredits();
-    return;
-  }
-
-  if (choice === null) {
-    // restart after an ending - keep seen_intro so the video isn't forced again
-    state = {
-      chosen_character: null,
-      current_scene: null,
-      flags: state.flags?.seen_intro ? { seen_intro: true } : {},
-      visited_tribes: [],
-    };
-    await saveProgress(state);
-    playForScene(null);
-    renderCharacterSelect(app, content, onChooseCharacter);
-    return;
-  }
-
-  const nextScene = content.scenes.get(choice.next_scene);
-  state = {
-    ...state,
-    current_scene: choice.next_scene,
-    flags: applyConsequences(state.flags, choice.consequences),
-    visited_tribes: nextScene?.tribe_id
-      ? [...new Set([...(state.visited_tribes || []), nextScene.tribe_id])]
-      : state.visited_tribes,
-  };
-  await saveProgress(state);
-  showScene();
+  if (visit !== playVisit) return; // the student already went somewhere else
+  stopPlay = startPlay(app, content, { state, save: () => saveProgress(state) }).stop;
 }
 
 async function init() {
@@ -227,11 +165,6 @@ async function init() {
         visited_tribes: progress.visited_tribes || [],
       }
     : { chosen_character: null, current_scene: null, flags: {}, visited_tribes: [] };
-
-  if (!state.flags?.seen_intro) {
-    showIntro(markIntroSeenAndContinue);
-    return;
-  }
 
   // While the class is collecting villages and villagers, Contribute is the
   // landing page; Play is one click away in the menu.

@@ -99,6 +99,29 @@ export async function joinVillage(code) {
   return data;
 }
 
+// Pictures for a village (landmarks and other things). The picture is sent
+// as base64 inside the JSON; the page shrinks it first, so it is small.
+async function villageAction(body) {
+  const res = await fetch('/api/submit', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) throw new Error('You are logged out. Log in again - your text is saved.');
+  if (!res.ok) throw new Error(data.error || 'Something went wrong - please try again.');
+  return data;
+}
+
+export function addVillageImage({ tribe_id, caption, mime, data }) {
+  return villageAction({ action: 'add-image', tribe_id, caption, mime, data });
+}
+
+export function deleteVillageImage(id) {
+  return villageAction({ action: 'delete-image', id });
+}
+
 // Unsent Contribute text kept on the server, so a student can continue on
 // another computer. Failures carry a `status` (0 = no network) so the page can
 // tell "logged out" from "offline" from "rejected".

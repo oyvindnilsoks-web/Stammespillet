@@ -1,4 +1,5 @@
-import { loadSubmissions, sendSubmission, joinVillage, loadDrafts, putDraft, removeDraft } from './api.js';
+import { loadSubmissions, sendSubmission, joinVillage, addVillageImage, deleteVillageImage, loadDrafts, putDraft, removeDraft } from './api.js';
+import { mediaUrl } from './content.js';
 import { CHARTERS, allFields } from './charters.js';
 import { escapeHtml } from './translate.js';
 
@@ -65,6 +66,20 @@ const TEXT = {
     joining: 'Joining…',
     joined: (name) => `You joined ${name}.`,
     joinNoCode: 'Write the group code first.',
+    picturesTitle: 'Pictures',
+    picturesHelp: 'Add pictures of famous places and other things in your village. Drawings work best. Please do not upload photos of people.',
+    picturesFirst: 'Press Send to teacher first. Then you can add pictures here.',
+    picChoose: 'Choose a picture',
+    picCaption: 'What is it? For example: The Old Bridge',
+    picAdd: 'Add picture',
+    picDelete: 'Delete',
+    picDeleteAsk: 'Delete this picture?',
+    picAdding: 'Adding…',
+    picAdded: 'Picture added.',
+    picDeleted: 'Picture deleted.',
+    picNoFile: 'Choose a picture first.',
+    picCannotRead: 'This picture could not be read. Try a JPEG or PNG.',
+    picLocked: 'The teacher has looked at this village, so pictures can no longer be changed.',
     draft: {
       saving: 'Saving…',
       saved: (time) => `✓ Saved ${time}`,
@@ -117,6 +132,20 @@ const TEXT = {
     joining: 'Blir med…',
     joined: (name) => `Du er med i ${name}.`,
     joinNoCode: 'Skriv gruppekoden først.',
+    picturesTitle: 'Bilder',
+    picturesHelp: 'Legg til bilder av kjente steder og andre ting i landsbyen. Tegninger fungerer best. Ikke last opp bilder av mennesker.',
+    picturesFirst: 'Trykk først Send til læreren. Da kan du legge til bilder her.',
+    picChoose: 'Velg et bilde',
+    picCaption: 'Hva er det? For eksempel: Den gamle broen',
+    picAdd: 'Legg til bilde',
+    picDelete: 'Slett',
+    picDeleteAsk: 'Slette dette bildet?',
+    picAdding: 'Legger til…',
+    picAdded: 'Bildet er lagt til.',
+    picDeleted: 'Bildet er slettet.',
+    picNoFile: 'Velg et bilde først.',
+    picCannotRead: 'Bildet kunne ikke leses. Prøv en JPEG eller PNG.',
+    picLocked: 'Læreren har sett på landsbyen, så bildene kan ikke endres lenger.',
     draft: {
       saving: 'Lagrer…',
       saved: (time) => `✓ Lagret ${time}`,
@@ -139,6 +168,11 @@ const SERVER_MESSAGES_NO = {
   'Choose your village from the list.': 'Velg landsbyen din fra lista.',
   'A name is required.': 'Skriv et navn først.',
   'No village has that code.': 'Ingen landsby har den koden.',
+  'Use a JPEG, PNG or WebP picture.': 'Bruk et bilde av typen JPEG, PNG eller WebP.',
+  'The picture is too big.': 'Bildet er for stort.',
+  'This file is not a picture.': 'Denne filen er ikke et bilde.',
+  'This village already has 8 pictures. Delete one first.': 'Landsbyen har allerede 8 bilder. Slett ett først.',
+  'Picture not found': 'Fant ikke bildet.',
 };
 
 let root;
@@ -616,6 +650,7 @@ function renderForm() {
     ${restored[kind] ? `<p class="restored-note">${t.restored(sendLabel)}</p>` : ''}
     ${top}
     ${renderSections(kind)}
+    ${kind === 'village' ? renderPictures() : ''}
     <div class="submit-row">
       <button class="choice-btn" id="send-btn" ${data.open ? '' : 'disabled'}>${sendLabel}</button>
       <span id="send-status" class="muted" role="status"></span>
@@ -663,6 +698,119 @@ function wireForm(kind) {
 
   formEl.querySelector('#send-btn').addEventListener('click', () => send(kind));
   formEl.querySelector('#join-btn')?.addEventListener('click', joinGroup);
+  formEl.querySelector('#pic-add-btn')?.addEventListener('click', addPicture);
+  formEl.querySelectorAll('[data-delete-pic]').forEach((btn) => btn.addEventListener('click', () => deletePicture(btn.dataset.deletePic)));
+}
+
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'];
+
+// The last part of the village form: pictures of famous places and other
+// things. A picture belongs to a village that has been sent, so before the
+// first send there is only a note.
+function renderPictures() {
+  const t = L();
+  const number = ROMAN[CHARTERS[form.village.type].sections.length] || '';
+  const head = `<div class="charter-head"><span class="charter-num">${number}</span><div><h3>${t.picturesTitle}</h3></div></div>`;
+  const sub = editing.village;
+  if (!sub) return `<section class="charter-section pictures">${head}<p class="muted">${t.picturesFirst}</p></section>`;
+
+  const live = data.mine.villages.find((v) => v.id === sub.id) || sub;
+  const canEdit = live.status === 'pending' && data.open;
+  const pictures = (data.mine.media || []).filter((m) => m.tribe_id === sub.id && m.kind === 'image');
+  const grid = pictures.length
+    ? `<div class="pic-grid">${pictures
+        .map(
+          (m) => `
+        <figure class="pic">
+          <img src="${escapeHtml(mediaUrl(m.storage_path))}" alt="${escapeHtml(m.title || '')}" loading="lazy">
+          <figcaption>${escapeHtml(m.title || '')}</figcaption>
+          ${canEdit ? `<button class="small-btn danger" type="button" data-delete-pic="${escapeHtml(m.id)}">${t.picDelete}</button>` : ''}
+        </figure>`
+        )
+        .join('')}</div>`
+    : '';
+  const add = canEdit
+    ? `<div class="pic-add">
+        <input id="pic-file" type="file" accept="image/*" aria-label="${t.picChoose}">
+        <input id="pic-caption" type="text" maxlength="120" placeholder="${escapeHtml(t.picCaption)}" aria-label="${escapeHtml(t.picCaption)}">
+        <button class="small-btn" id="pic-add-btn" type="button">${t.picAdd}</button>
+        <span id="pic-status" class="muted" role="status"></span>
+      </div>`
+    : `<p class="muted">${t.picLocked}</p>`;
+  return `<section class="charter-section pictures">${head}<p class="charter-lede">${t.picturesHelp}</p>${grid}${add}</section>`;
+}
+
+// Shrinks a picture to at most 1400 px and saves it again as JPEG. That keeps
+// the upload small and drops everything hidden in the original file, such as
+// the place a photo was taken.
+async function prepareImage(file) {
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    const err = new Error('unreadable');
+    err.code = 'unreadable';
+    throw err;
+  }
+  const scale = Math.min(1, 1400 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+  if (!blob) {
+    const err = new Error('unreadable');
+    err.code = 'unreadable';
+    throw err;
+  }
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+  return { mime: 'image/jpeg', data: String(dataUrl).split(',')[1] };
+}
+
+async function addPicture() {
+  const statusEl = root.querySelector('#pic-status');
+  const file = root.querySelector('#pic-file').files[0];
+  if (!file) {
+    statusEl.textContent = L().picNoFile;
+    return;
+  }
+  const button = root.querySelector('#pic-add-btn');
+  button.disabled = true;
+  statusEl.textContent = L().picAdding;
+  try {
+    const { mime, data: encoded } = await prepareImage(file);
+    await addVillageImage({ tribe_id: editing.village.id, caption: root.querySelector('#pic-caption').value.trim(), mime, data: encoded });
+    data = await loadSubmissions();
+    renderPage();
+    root.querySelector('.pictures')?.scrollIntoView({ block: 'center' });
+    root.querySelector('#pic-status').textContent = L().picAdded;
+  } catch (err) {
+    button.disabled = false;
+    statusEl.textContent = err.code === 'unreadable' ? L().picCannotRead : errorText(err);
+  }
+}
+
+async function deletePicture(id) {
+  if (!window.confirm(L().picDeleteAsk)) return;
+  try {
+    await deleteVillageImage(id);
+    data = await loadSubmissions();
+    renderPage();
+    root.querySelector('.pictures')?.scrollIntoView({ block: 'center' });
+    root.querySelector('#pic-status').textContent = L().picDeleted;
+  } catch (err) {
+    const statusEl = root.querySelector('#pic-status');
+    if (statusEl) statusEl.textContent = errorText(err);
+  }
 }
 
 // Joins a village a group member started. The village then opens for editing

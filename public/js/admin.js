@@ -191,6 +191,7 @@ function renderNav() {
   nav.innerHTML = `
     <button data-view="villages" class="${view === 'villages' ? 'active' : ''}">Villages${count(pendingVillages)}</button>
     <button data-view="villagers" class="${view === 'villagers' ? 'active' : ''}">Villagers${count(pendingVillagers)}</button>
+    <button data-view="students" class="${view === 'students' ? 'active' : ''}">Students</button>
     <button data-view="settings" class="${view === 'settings' ? 'active' : ''}">Settings</button>
     <a href="#" id="admin-logout">Log out</a>`;
   nav.querySelectorAll('[data-view]').forEach((btn) =>
@@ -206,10 +207,68 @@ function renderNav() {
   });
 }
 
+// The students who have logged in with Feide, and a way to remove one of
+// them with everything they wrote (for a request to delete their data).
+function renderStudents() {
+  const students = [...(data.students || [])].sort((a, b) => (a.display_name || '').localeCompare(b.display_name || '', 'nb'));
+  const membersOf = (id) => Object.values(data.members || {}).filter((ids) => ids.includes(id)).length;
+  const rows = students
+    .map((s) => {
+      const villages = data.villages.filter((v) => v.submitted_by === s.user_id).length;
+      const villagers = data.villagers.filter((c) => c.submitted_by === s.user_id).length;
+      const last = s.last_login ? new Date(s.last_login).toLocaleString('nb-NO', { dateStyle: 'short', timeStyle: 'short' }) : '–';
+      return `
+        <tr>
+          <td><strong>${h(s.display_name || 'Unnamed student')}</strong>${s.is_admin ? ' <span class="status-badge status-approved">admin</span>' : ''}</td>
+          <td>${h(last)}</td>
+          <td>${villages} started, ${membersOf(s.user_id)} in groups</td>
+          <td>${villagers}</td>
+          <td>${s.is_admin ? '' : `<button class="small-btn danger" data-delete-student="${h(s.user_id)}">Delete</button>`}</td>
+        </tr>`;
+    })
+    .join('');
+  app.innerHTML = `
+    <p id="admin-flash" class="admin-flash" hidden></p>
+    <section class="admin-settings">
+      <h2>Students</h2>
+      <p class="muted">Everyone who has logged in with Feide. <strong>Delete</strong> removes the student and what they wrote: their villagers, unsent drafts, group memberships and game progress. A village they started is deleted too, unless other students' villagers or group members depend on it. Then it stays without a link to the student. This cannot be undone. The student can still log in again and start from nothing.</p>
+      ${
+        rows
+          ? `<div class="table-scroll"><table class="student-table">
+              <thead><tr><th>Name</th><th>Last login</th><th>Villages</th><th>Villagers</th><th></th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table></div>`
+          : '<p class="muted">Nobody has logged in with Feide yet.</p>'
+      }
+    </section>`;
+
+  app.querySelectorAll('[data-delete-student]').forEach((btn) =>
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.deleteStudent;
+      const student = (data.students || []).find((s) => s.user_id === id);
+      const name = student?.display_name || 'this student';
+      if (!confirm(`Delete ${name} and everything they wrote? This cannot be undone.`)) return;
+      try {
+        const r = await api('POST', { action: 'delete-student', user_id: id });
+        await reload();
+        flash(
+          `Deleted ${name}: ${r.deletedVillagers} villager(s) and ${r.deletedVillages} village(s) removed${r.keptVillages ? `, ${r.keptVillages} group village(s) kept without a link to them` : ''}.`
+        );
+      } catch (err) {
+        if (err.message !== 'Logged out') flash(err.message, true);
+      }
+    })
+  );
+}
+
 function render() {
   renderNav();
   if (view === 'settings') {
     renderSettings();
+    return;
+  }
+  if (view === 'students') {
+    renderStudents();
     return;
   }
 

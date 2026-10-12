@@ -123,6 +123,85 @@ async function handleJoin(supabase, user, rawCode) {
   return json(200, { ok: true, id: tribe.id, name: tribe.name });
 }
 
+// Pictures students add to their village (landmarks and other things). The
+// browser shrinks and re-encodes every picture first, which also strips hidden
+// data such as the place a photo was taken. The server checks it again.
+const BUCKET = 'media';
+const MAX_IMAGES_PER_VILLAGE = 8;
+const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
+const IMAGE_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+
+// The first bytes of a file say what it really is, whatever the browser claims.
+function looksLike(type, buf) {
+  if (type === 'image/jpeg') return buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+  if (type === 'image/png') return buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
+  if (type === 'image/webp') return buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP';
+  return false;
+}
+
+// A village the student may add pictures to: theirs or their group's, and
+// still waiting for the teacher. Anything else answers like it does not exist.
+async function villageForPictures(supabase, user, id) {
+  const { data: tribe, error } = await supabase.from('tribes').select('id, status, submitted_by').eq('id', String(id || '')).maybeSingle();
+  if (error) return { response: json(500, { error: error.message }) };
+  if (!tribe || !(await mayEditVillage(supabase, tribe, user))) return { response: json(404, { error: 'Submission not found' }) };
+  if (tribe.status !== 'pending') return { response: json(409, { error: 'This village has already been reviewed by your teacher.' }) };
+  return { tribe };
+}
+
+async function handleAddImage(supabase, user, body) {
+  const { tribe, response } = await villageForPictures(supabase, user, body.tribe_id);
+  if (response) return response;
+
+  const type = String(body.mime || '');
+  if (!IMAGE_TYPES[type]) return json(400, { error: 'Use a JPEG, PNG or WebP picture.' });
+  if (typeof body.data !== 'string' || !body.data) return json(400, { error: 'This file is not a picture.' });
+  const buf = Buffer.from(body.data, 'base64');
+  if (buf.length > MAX_IMAGE_BYTES) return json(413, { error: 'The picture is too big.' });
+  if (!buf.length || !looksLike(type, buf)) return json(400, { error: 'This file is not a picture.' });
+
+  const { count, error: countErr } = await supabase.from('media').select('id', { count: 'exact', head: true }).eq('tribe_id', tribe.id).eq('kind', 'image');
+  if (countErr) return json(500, { error: countErr.message });
+  if (count >= MAX_IMAGES_PER_VILLAGE) {
+    return json(409, { error: `This village already has ${MAX_IMAGES_PER_VILLAGE} pictures. Delete one first.` });
+  }
+
+  const path = `${new Date().getFullYear()}/${crypto.randomUUID()}-picture.${IMAGE_TYPES[type]}`;
+  const { error: uploadErr } = await supabase.storage.from(BUCKET).upload(path, buf, { contentType: type, upsert: false });
+  if (uploadErr) return json(500, { error: uploadErr.message });
+
+  const caption = typeof body.caption === 'string' ? body.caption.trim().slice(0, 120) : '';
+  const { data: row, error: insertErr } = await supabase
+    .from('media')
+    .insert({ tribe_id: tribe.id, kind: 'image', title: caption, storage_path: path, mime_type: type })
+    .select('id, tribe_id, kind, title, storage_path')
+    .single();
+  if (insertErr) {
+    // No row, so the file would never be found again: take it away.
+    await supabase.storage.from(BUCKET).remove([path]);
+    return json(500, { error: insertErr.message });
+  }
+  return json(200, { ok: true, media: row });
+}
+
+async function handleDeleteImage(supabase, user, body) {
+  const { data: item, error } = await supabase
+    .from('media')
+    .select('id, tribe_id, kind, storage_path')
+    .eq('id', String(body.id || ''))
+    .maybeSingle();
+  if (error) return json(500, { error: error.message });
+  if (!item || !item.tribe_id) return json(404, { error: 'Picture not found' });
+
+  const { response } = await villageForPictures(supabase, user, item.tribe_id);
+  if (response) return response;
+
+  const { error: delErr } = await supabase.from('media').delete().eq('id', item.id);
+  if (delErr) return json(500, { error: delErr.message });
+  if (item.storage_path) await supabase.storage.from(BUCKET).remove([item.storage_path]);
+  return json(200, { ok: true });
+}
+
 async function handleGet(supabase, user) {
   const [open, villagesRes, myVillagesRes, myVillagersRes] = await Promise.all([
     submissionsOpen(supabase),
@@ -137,13 +216,26 @@ async function handleGet(supabase, user) {
   const err = villagesRes.error || myVillagesRes.error || myVillagersRes.error;
   if (err) return json(500, { error: err.message });
 
+  // The pictures students have added to their villages, for the Pictures part of the form.
+  let media = [];
+  const villageIds = myVillagesRes.data.map((v) => v.id);
+  if (villageIds.length) {
+    const { data: mediaRows, error: mediaErr } = await supabase
+      .from('media')
+      .select('id, tribe_id, kind, title, storage_path')
+      .in('tribe_id', villageIds)
+      .order('created_at');
+    if (mediaErr) return json(500, { error: mediaErr.message });
+    media = mediaRows;
+  }
+
   return json(200, {
     me: user,
     open,
     // Norwegian writing needs a translation key on the server.
     translation: Boolean((process.env.DEEPL_API_KEY || '').trim()),
     villages: villagesRes.data,
-    mine: { villages: myVillagesRes.data, villagers: myVillagersRes.data },
+    mine: { villages: myVillagesRes.data, villagers: myVillagersRes.data, media },
   });
 }
 
@@ -269,6 +361,8 @@ exports.handler = withSessionRenewal(async (event) => {
   }
 
   if (body.action === 'join') return handleJoin(supabase, user, body.code);
+  if (body.action === 'add-image') return handleAddImage(supabase, user, body);
+  if (body.action === 'delete-image') return handleDeleteImage(supabase, user, body);
 
   if (!TYPES.includes(body.type)) return json(400, { error: 'Unknown form type' });
   const charter = cleanCharter(body.charter);

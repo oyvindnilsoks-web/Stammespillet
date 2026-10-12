@@ -31,14 +31,15 @@ function num(v) {
 }
 
 async function loadAll(supabase) {
-  const [villages, villagers, media, settings, memberRows] = await Promise.all([
+  const [villages, villagers, media, settings, memberRows, studentRows] = await Promise.all([
     supabase.from('tribes').select('*').order('created_at'),
     supabase.from('characters').select('*').order('created_at'),
     supabase.from('media').select('*').order('sort_order').order('created_at'),
     supabase.from('settings').select('key, value'),
     supabase.from('village_members').select('tribe_id, user_id').order('joined_at'),
+    supabase.from('students').select('user_id, display_name, is_admin, last_login').order('display_name'),
   ]);
-  const err = villages.error || villagers.error || media.error || settings.error || memberRows.error;
+  const err = villages.error || villagers.error || media.error || settings.error || memberRows.error || studentRows.error;
   if (err) return json(500, { error: err.message });
   // Feide names for "sent by" in the admin lists. A failure here must not
   // hide the rest of the page, so the teacher just sees "unknown student".
@@ -54,6 +55,7 @@ async function loadAll(supabase) {
   return json(200, {
     owners,
     members,
+    students: studentRows.data,
     villages: villages.data,
     villagers: villagers.data,
     media: media.data,
@@ -147,6 +149,81 @@ async function setOwner(supabase, { table, id, owner }) {
   return json(200, { ok: true });
 }
 
+// Removes a student and what they wrote, for example when they or their
+// parents ask for it: their villagers, drafts, group memberships, game
+// progress and the students row. A village they started is deleted as well,
+// unless villagers from other students or other group members depend on it.
+// Then it stays, but is no longer linked to the student.
+async function deleteStudent(supabase, { user_id: userId }) {
+  if (typeof userId !== 'string' || !userId.startsWith('feide:')) {
+    return json(400, { error: 'Choose a student who has logged in with Feide.' });
+  }
+  const { data: student, error: studentErr } = await supabase.from('students').select('user_id, is_admin').eq('user_id', userId).maybeSingle();
+  if (studentErr) return json(500, { error: studentErr.message });
+  if (!student) return json(404, { error: 'No such student.' });
+  if (student.is_admin) {
+    return json(409, { error: 'This student is an admin. Remove the admin mark in the database first, so the teacher is not locked out by mistake.' });
+  }
+
+  const fail = (error) => json(500, { error: `Stopped part of the way: ${error.message}. Run it again to finish.` });
+  const mediaOf = async (column, ids) => {
+    if (!ids.length) return [];
+    const { data } = await supabase.from('media').select('storage_path').in(column, ids);
+    return data || [];
+  };
+
+  // 1. Their villagers.
+  const { data: villagers, error: villagersErr } = await supabase.from('characters').select('id').eq('submitted_by', userId);
+  if (villagersErr) return fail(villagersErr);
+  const villagerIds = villagers.map((v) => v.id);
+  const villagerMedia = await mediaOf('character_id', villagerIds);
+  if (villagerIds.length) {
+    const { error } = await supabase.from('characters').delete().in('id', villagerIds);
+    if (error) return fail(error);
+  }
+
+  // 2. Their villages: delete the ones nobody else depends on.
+  const { data: villages, error: villagesErr } = await supabase.from('tribes').select('id').eq('submitted_by', userId);
+  if (villagesErr) return fail(villagesErr);
+  let deletedVillages = 0;
+  let keptVillages = 0;
+  const removedMedia = [...villagerMedia];
+  for (const village of villages) {
+    const { count: otherVillagers, error: e1 } = await supabase.from('characters').select('id', { count: 'exact', head: true }).eq('tribe_id', village.id);
+    if (e1) return fail(e1);
+    const { count: otherMembers, error: e2 } = await supabase
+      .from('village_members')
+      .select('user_id', { count: 'exact', head: true })
+      .eq('tribe_id', village.id)
+      .neq('user_id', userId);
+    if (e2) return fail(e2);
+    if (otherVillagers > 0 || otherMembers > 0) {
+      const { error } = await supabase.from('tribes').update({ submitted_by: null }).eq('id', village.id);
+      if (error) return fail(error);
+      keptVillages += 1;
+    } else {
+      removedMedia.push(...(await mediaOf('tribe_id', [village.id])));
+      const { error } = await supabase.from('tribes').delete().eq('id', village.id);
+      if (error) return fail(error);
+      deletedVillages += 1;
+    }
+  }
+
+  // 3. Everything else that belongs to them.
+  for (const [table, column] of [
+    ['village_members', 'user_id'],
+    ['drafts', 'owner_id'],
+    ['progress', 'feide_id'],
+    ['students', 'user_id'],
+  ]) {
+    const { error } = await supabase.from(table).delete().eq(column, userId);
+    if (error) return fail(error);
+  }
+  await removeStorage(supabase, removedMedia);
+
+  return json(200, { ok: true, deletedVillagers: villagerIds.length, deletedVillages, keptVillages });
+}
+
 async function removeStorage(supabase, rows) {
   const paths = rows.map((r) => r.storage_path).filter(Boolean);
   if (paths.length) await supabase.storage.from(BUCKET).remove(paths);
@@ -233,6 +310,7 @@ const ACTIONS = {
   'save-villager': saveVillager,
   'set-status': setStatus,
   'set-owner': setOwner,
+  'delete-student': deleteStudent,
   delete: deleteRow,
   'upload-url': uploadUrl,
   'add-media': addMedia,

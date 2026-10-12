@@ -1,0 +1,7 @@
+Graphics: "Tiny Town" and "Tiny Dungeon" by Kenney (www.kenney.nl),
+Creative Commons Zero (CC0 1.0), http://creativecommons.org/publicdomain/zero/1.0/
+Files: town.png and heroes.png are the packed tilemaps of the two packs.
+
+Game engine: Phaser 3.90.0 (MIT licence), see /vendor/PHASER-LICENSE.txt.
+
+World map: public/assets/images/lore/overview-map.jpg (made for this project).

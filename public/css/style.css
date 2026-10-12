@@ -12,6 +12,9 @@
 
 * { box-sizing: border-box; }
 
+/* An element with the hidden attribute is always hidden, also when a rule gives it a display. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   font-family: Georgia, 'Times New Roman', serif;
@@ -515,3 +518,126 @@ main.admin-main { max-width: 1200px; }
 .group-code { font-family: ui-monospace, Consolas, monospace; font-size: 1.3rem; letter-spacing: 0.15em; color: var(--accent); }
 .join-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-top: 0.6rem; }
 .join-row input { font: inherit; text-transform: uppercase; letter-spacing: 0.1em; width: 10rem; padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid var(--muted); background: var(--bg); color: var(--text); }
+
+/* ---------- Admin: students ---------- */
+
+.table-scroll { overflow-x: auto; }
+.student-table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; }
+.student-table th { text-align: left; font-size: 0.8rem; color: var(--muted-text); font-weight: normal; padding: 0 0.75rem 0.4rem 0; border-bottom: 1px solid var(--muted); }
+.student-table td { padding: 0.55rem 0.75rem 0.55rem 0; border-bottom: 1px solid var(--muted); vertical-align: middle; }
+
+/* ---------- Contribute: pictures ---------- */
+
+.pic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem; margin: 0.75rem 0; }
+.pic { margin: 0; display: grid; gap: 0.35rem; align-content: start; }
+.pic img { width: 100%; height: 110px; object-fit: cover; border-radius: 6px; background: var(--bg); }
+.pic figcaption { font-size: 0.85rem; color: var(--muted-text); overflow-wrap: anywhere; min-height: 1.2em; }
+.pic .small-btn { justify-self: start; }
+.pic-add { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-top: 0.75rem; }
+.pic-add input[type="text"] { flex: 1 1 14rem; font: inherit; padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid var(--muted); background: var(--bg); color: var(--text); }
+.pic-add input[type="file"] { max-width: 100%; color: var(--muted-text); }
+
+/* ---------- Play: the 2D game ---------- */
+
+main.wide { max-width: 1000px; }
+
+.play { display: grid; gap: 0.75rem; }
+.play-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  aspect-ratio: 16 / 10;
+  background: #1b1712;
+  border: 1px solid var(--muted);
+  border-radius: 10px;
+  overflow: hidden;
+}
+#play-canvas { position: absolute; inset: 0; }
+#play-canvas canvas { display: block; }
+.play-loading { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; }
+.play-help { font-size: 0.85rem; margin: 0 auto; max-width: 960px; }
+.play-empty { max-width: 560px; }
+
+.play-hud {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 5;
+  display: flex;
+  gap: 1rem;
+  padding: 0.35rem 0.7rem;
+  background: rgba(27, 23, 18, 0.85);
+  border-radius: 8px;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8rem;
+  color: var(--muted-text);
+  pointer-events: none;
+}
+.play-hud strong { color: var(--text); }
+
+.play-prompt {
+  position: absolute;
+  left: 50%;
+  bottom: 0.8rem;
+  z-index: 5;
+  transform: translateX(-50%);
+  max-width: 92%;
+  padding: 0.45rem 0.9rem;
+  background: rgba(27, 23, 18, 0.92);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.play-overlay { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; padding: 0.75rem; background: rgba(0, 0, 0, 0.55); }
+.play-window {
+  width: min(660px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem 1.25rem;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+}
+.play-window-head { display: flex; align-items: center; gap: 1rem; }
+.play-window-head > div { flex: 1; min-width: 0; }
+.play-window-head h2 { margin: 0; overflow-wrap: anywhere; }
+.play-window-head p { margin: 0; }
+.play-portrait {
+  flex: none;
+  display: inline-block;
+  width: 64px;
+  height: 64px;
+  background: var(--bg) url('/assets/game/heroes.png') no-repeat;
+  background-size: 768px 704px;
+  image-rendering: pixelated;
+  border-radius: 8px;
+}
+.play-shield { flex: none; width: 64px; height: 64px; object-fit: contain; }
+
+.play-answer { min-height: 6.5rem; padding: 0.8rem 1rem; background: var(--bg); border-radius: 8px; }
+.play-question { margin: 0 0 0.4rem; color: var(--accent); font-size: 0.9rem; }
+.play-text { margin: 0; white-space: pre-wrap; font-size: 1.05rem; line-height: 1.55; }
+.play-topics { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.play-topic { background: var(--bg); color: var(--muted-text); border: 1px solid var(--muted); }
+.play-topic.active { background: var(--accent); color: #1b1712; border-color: var(--accent); }
+
+.play-board { display: grid; gap: 0.9rem; }
+.play-hero-image { width: 100%; max-height: 220px; object-fit: cover; border-radius: 8px; }
+.play-block h3 { margin: 0 0 0.3rem; font-size: 1rem; color: var(--accent); }
+.play-block p { margin: 0.25rem 0; white-space: pre-wrap; }
+.play-pictures { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.6rem; }
+.play-pictures figure { margin: 0; display: grid; gap: 0.25rem; }
+.play-pictures img { width: 100%; height: 120px; object-fit: cover; border-radius: 6px; background: var(--bg); }
+.play-pictures figcaption { font-size: 0.85rem; color: var(--muted-text); }
+.play-song { display: grid; gap: 0.35rem; margin-bottom: 0.6rem; }
+.play-song audio { width: 100%; }
+.play-lyrics { font-style: italic; }
