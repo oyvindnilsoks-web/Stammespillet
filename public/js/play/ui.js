@@ -200,6 +200,111 @@ export function createUi(wrap) {
       });
     },
 
+    // The glossary battle window. api = { list(), start(), accept(id), submit(id, answers),
+    // cancel(id), seen() }: what the hub shows, and the moves. onChange runs when the
+    // XP may have changed.
+    openBattle(api, onChange, closed) {
+      const result = (r) => (r === 'win' ? 'You won' : r === 'draw' ? 'Draw' : 'You lost');
+      const frame = (inner) =>
+        show(
+          `<div class="play-window-head"><div><h2>Word battle</h2><p class="muted">Two students answer the same words. The most right wins, and the quickest if it is equal.</p></div><button class="small-btn" data-close>Close</button></div>${inner}`,
+          closed
+        );
+
+      const playQuiz = (battle, onDone) => {
+        const rows = battle.questions
+          .map(
+            (q, i) => `<label class="task-row"><span class="muted">${i + 1}</span><span class="task-prompt">${escapeHtml(q.prompt)}</span>
+              <input type="text" data-answer="${i}" autocomplete="off" autocapitalize="off" spellcheck="false"></label>`
+          )
+          .join('');
+        frame(`<div class="play-tasks">${rows}</div><p class="task-result" id="battle-result" role="status"></p>
+          <div class="play-actions"><button class="choice-btn" id="battle-hand-in">Hand in</button></div>`);
+        const inputs = [...overlay.querySelectorAll('[data-answer]')];
+        inputs[0]?.focus();
+        const out = overlay.querySelector('#battle-result');
+        const button = overlay.querySelector('#battle-hand-in');
+        inputs.forEach((input, i) =>
+          input.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            if (inputs[i + 1]) inputs[i + 1].focus();
+            else button.click();
+          })
+        );
+        button.addEventListener('click', async () => {
+          button.disabled = true;
+          out.textContent = 'Checking…';
+          try {
+            const r = await api.submit(battle.id, inputs.map((x) => x.value));
+            if (!r.ok) {
+              out.textContent = r.error || 'Something went wrong.';
+              button.disabled = false;
+              return;
+            }
+            onDone(r);
+          } catch {
+            out.textContent = 'Something went wrong. Try again.';
+            button.disabled = false;
+          }
+        });
+      };
+
+      const finished = (r) => {
+        const text = r.finished
+          ? `<h3>${result(r.result)}!</h3><p>You got <strong>${r.score}</strong> of ${r.total} right. ${escapeHtml(r.vs)} got <strong>${r.vs_score}</strong>.</p><p>+${r.xp} XP. You now have <strong>${r.stats.xp} XP</strong> (${r.stats.wins} won, ${r.stats.losses} lost, ${r.stats.draws} draws).</p>`
+          : `<h3>Done!</h3><p>You got <strong>${r.score}</strong> of ${r.total} right. The battle waits for another student to take it. When they have, you see how it went here.</p>`;
+        frame(`<div class="play-answer">${text}</div><div class="play-actions"><button class="choice-btn" id="battle-back">Back to the battles</button></div>`);
+        overlay.querySelector('#battle-back').addEventListener('click', hub);
+        onChange();
+      };
+
+      const hub = async () => {
+        frame('<p class="muted">Loading…</p>');
+        let d;
+        try {
+          d = await api.list();
+        } catch {
+          frame('<p class="error">Could not load the battles.</p>');
+          return;
+        }
+        const open = d.open.length
+          ? d.open.map((o) => `<li><span>${escapeHtml(o.from)} is waiting</span> <button class="small-btn" data-accept="${escapeHtml(o.id)}">Take the battle</button></li>`).join('')
+          : '<li class="muted">Nobody is waiting right now. Start a battle, and the next student can take it.</li>';
+        const waiting = d.waiting.length
+          ? d.waiting.map((w) => `<li><span>Your battle (you got ${w.score} right) is waiting</span> <button class="small-btn" data-cancel="${escapeHtml(w.id)}">Take it away</button></li>`).join('')
+          : '';
+        const recent = d.recent.length
+          ? d.recent.map((r) => `<li><span>${result(r.result)} against ${escapeHtml(r.vs)}: ${r.score}–${r.vs_score}${r.unseen ? ' <strong>(new)</strong>' : ''}</span></li>`).join('')
+          : '<li class="muted">No battles yet.</li>';
+        frame(`<div class="play-answer"><p><strong>${d.stats.xp} XP</strong> · ${d.stats.wins} won, ${d.stats.losses} lost, ${d.stats.draws} draws</p></div>
+          <div class="play-actions"><button class="choice-btn" id="battle-start">Start a battle (${d.questions} words)</button></div>
+          <h3>Waiting for an opponent</h3><ul class="battle-list">${open}</ul>
+          ${waiting ? `<h3>Your waiting battles</h3><ul class="battle-list">${waiting}</ul>` : ''}
+          <h3>Your last battles</h3><ul class="battle-list">${recent}</ul>`);
+        if (d.unseen.length) api.seen().then(onChange).catch(() => {});
+
+        const begin = async (promise) => {
+          const b = await promise;
+          if (!b.ok) {
+            frame(`<p class="error">${escapeHtml(b.error || 'Could not start.')}</p><div class="play-actions"><button class="choice-btn" id="battle-back">Back</button></div>`);
+            overlay.querySelector('#battle-back').addEventListener('click', hub);
+            return;
+          }
+          playQuiz(b, finished);
+        };
+        overlay.querySelector('#battle-start').addEventListener('click', () => begin(api.start()));
+        overlay.querySelectorAll('[data-accept]').forEach((btn) => btn.addEventListener('click', () => begin(api.accept(btn.dataset.accept))));
+        overlay.querySelectorAll('[data-cancel]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            await api.cancel(btn.dataset.cancel);
+            hub();
+          })
+        );
+      };
+      hub();
+    },
+
     // Something the player finds or hears: a title, who it is for, and the text.
     openNote(title, subtitle, body, closed) {
       show(

@@ -73,6 +73,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/battle"
+  to = "/.netlify/functions/battle"
+  status = 200
+
+[[redirects]]
   from = "/api/draft"
   to = "/.netlify/functions/draft"
   status = 200

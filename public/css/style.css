@@ -685,3 +685,6 @@ main.wide { max-width: 1000px; }
 .task-prompt { font-weight: bold; }
 .task-result { min-height: 1.4rem; font-style: italic; }
 @media (max-width: 560px) { .task-row { grid-template-columns: 1fr; } }
+
+.battle-list { list-style: none; margin: 0.3rem 0 0.8rem; padding: 0; display: grid; gap: 0.4rem; }
+.battle-list li { display: flex; justify-content: space-between; gap: 0.6rem; align-items: center; }

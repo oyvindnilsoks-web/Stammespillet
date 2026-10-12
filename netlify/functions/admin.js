@@ -32,6 +32,13 @@ function num(v) {
 }
 
 async function loadAll(supabase) {
+  let xpRows = [];
+  try {
+    const { data: xp } = await supabase.from('xp').select('user_id, xp, wins, losses, draws');
+    xpRows = xp || [];
+  } catch (e) {
+    console.error('Could not load XP:', e.message);
+  }
   let worldState = null;
   try {
     worldState = worldLib.summary(await worldLib.loadState(supabase));
@@ -66,6 +73,7 @@ async function loadAll(supabase) {
     students: studentRows.data,
     councils: councilRows.data,
     world: worldState,
+    xp: xpRows,
     default_words: require('./_lib/tasks').DEFAULT_WORDS_TEXT.trim(),
     villages: villages.data,
     villagers: villagers.data,

@@ -196,6 +196,22 @@ function mathQuestion() {
   return { prompt: `${percent}% of ${base} =`, answer: String((base * percent) / 100) };
 }
 
+// n different words as glossary questions, for a battle. Both players get the
+// same ones, so a word is never asked twice in a battle. Returns
+// [{ prompt, answer }]; fewer than n if the list is shorter.
+function vocabSet(words = [], n = 8) {
+  const pool = [...(words.length ? words : DEFAULT_WORDS)];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(i + 1);
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, n).map((w) =>
+    crypto.randomInt(5) === 0
+      ? { prompt: `Translate to Norwegian: ${firstForm(w.en)}`, answer: w.no }
+      : { prompt: `Translate to English: ${firstForm(w.no)}`, answer: w.en }
+  );
+}
+
 // The first of the right forms ("trøtt/sliten" -> "trøtt"): that is what is asked.
 const firstForm = (text) => String(text).split('/')[0].trim();
 
@@ -264,4 +280,4 @@ function reward(correct, total) {
   return { radius: 0, shield: 0 };
 }
 
-module.exports = { makeQuiz, grade, reward, parseWords, isCorrect, normalise, seal, unseal, DEFAULT_WORDS, DEFAULT_WORDS_TEXT, QUESTIONS };
+module.exports = { vocabSet, makeQuiz, grade, reward, parseWords, isCorrect, normalise, seal, unseal, DEFAULT_WORDS, DEFAULT_WORDS_TEXT, QUESTIONS };

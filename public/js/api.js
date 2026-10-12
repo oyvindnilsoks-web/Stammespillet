@@ -130,6 +130,25 @@ export async function cleanseWorld(tribeId) {
   return res.json();
 }
 
+// Glossary battles between students: the window's data, and the moves.
+export async function battleList() {
+  const res = await fetch('/api/battle', { credentials: 'same-origin' });
+  if (!res.ok) throw new Error('Could not load the battles.');
+  return res.json();
+}
+
+export async function battleDo(body) {
+  const res = await fetch('/api/battle', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok && !data.error) throw new Error('Something went wrong.');
+  return data;
+}
+
 // The tasks that clean the poison: a new quiz, and handing in the answers.
 export async function startTask() {
   const res = await fetch('/api/world', {

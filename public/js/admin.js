@@ -343,6 +343,11 @@ function renderCouncils() {
 // them with everything they wrote (for a request to delete their data).
 function renderStudents() {
   const students = [...(data.students || [])].sort((a, b) => (a.display_name || '').localeCompare(b.display_name || '', 'nb'));
+  const xpBy = new Map((data.xp || []).map((x) => [x.user_id, x]));
+  const xpText = (id) => {
+    const x = xpBy.get(id);
+    return x ? `${x.xp} (${x.wins}-${x.losses}-${x.draws})` : '–';
+  };
   const membersOf = (id) => Object.values(data.members || {}).filter((ids) => ids.includes(id)).length;
   const rows = students
     .map((s) => {
@@ -355,6 +360,7 @@ function renderStudents() {
           <td>${h(last)}</td>
           <td>${villages} started, ${membersOf(s.user_id)} in groups</td>
           <td>${villagers}</td>
+          <td>${h(xpText(s.user_id))}</td>
           <td>${s.is_admin ? '' : `<button class="small-btn danger" data-delete-student="${h(s.user_id)}">Delete</button>`}</td>
         </tr>`;
     })
@@ -367,7 +373,7 @@ function renderStudents() {
       ${
         rows
           ? `<div class="table-scroll"><table class="student-table">
-              <thead><tr><th>Name</th><th>Last login</th><th>Villages</th><th>Villagers</th><th></th></tr></thead>
+              <thead><tr><th>Name</th><th>Last login</th><th>Villages</th><th>Villagers</th><th>XP (W-L-D)</th><th></th></tr></thead>
               <tbody>${rows}</tbody>
             </table></div>`
           : '<p class="muted">Nobody has logged in with Feide yet.</p>'
