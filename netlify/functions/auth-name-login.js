@@ -12,6 +12,11 @@ exports.handler = async (event) => {
     return { statusCode: 405, body: 'Method not allowed' };
   }
 
+  // Switched off with ALLOW_NAME_LOGIN=false once students log in with Feide.
+  if (process.env.ALLOW_NAME_LOGIN === 'false') {
+    return { statusCode: 403, body: 'Name login is turned off' };
+  }
+
   let body;
   try {
     body = JSON.parse(event.body || '{}');

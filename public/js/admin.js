@@ -25,11 +25,27 @@ let data = null;
 let view = 'villages';
 let filter = 'pending';
 let selectedId = null;
+let feideEnabled = false;
 
 const h = escapeHtml;
 
+// Who sent a submission: the Feide name from the students table, or the
+// typed name from the old name login.
 function who(submittedBy) {
-  return (submittedBy || '').replace(/^(name|dev):/, '') || 'teacher';
+  const id = submittedBy || '';
+  if (id.startsWith('feide:')) return data?.owners?.[id] || 'unknown student';
+  return id.replace(/^(name|dev):/, '') || 'teacher';
+}
+
+// "Group: Kari, Ola · Group code: ABC234" for a village written by a group.
+function groupLine(village) {
+  const ids = data?.members?.[village.id] || [];
+  if (ids.length < 2 && !village.join_code) return '';
+  const names = ids.map((id) => who(id)).join(', ');
+  const parts = [];
+  if (ids.length) parts.push(`Group: ${h(names)}`);
+  if (village.join_code) parts.push(`Group code: <strong>${h(village.join_code)}</strong>`);
+  return `<p class="muted">${parts.join(' · ')}</p>`;
 }
 
 function badge(status) {
@@ -79,6 +95,12 @@ function showLogin(message) {
   app.innerHTML = `
     <div class="login-box">
       <h1>Teacher admin</h1>
+      ${
+        feideEnabled
+          ? `<a class="choice-btn feide-btn" href="/api/auth/login?next=/admin.html">Log in with Feide</a>
+             <p class="muted">Or use the password.</p>`
+          : ''
+      }
       <form id="admin-login">
         <label for="admin-pw" class="muted">Password</label>
         <input id="admin-pw" type="password" autocomplete="current-password" required>
@@ -108,6 +130,10 @@ function showLogin(message) {
 
 async function logout() {
   await fetch('/api/admin/login', { method: 'DELETE', credentials: 'same-origin' });
+  if (feideEnabled) {
+    window.location.href = '/api/auth/logout';
+    return;
+  }
   showLogin();
 }
 
@@ -255,7 +281,30 @@ function statusButtons(table, record) {
     .filter(([s]) => s !== record.status)
     .map(([s, label]) => `<button class="small-btn" data-status="${s}">${label}</button>`)
     .join('');
-  return `<div class="status-actions">${buttons}<button class="small-btn danger" data-delete>Delete</button></div>`;
+  return `<div class="status-actions">${buttons}<button class="small-btn danger" data-delete>Delete</button></div>${ownerControl(record)}`;
+}
+
+// Students who have logged in with Feide, for the owner drop-down.
+function studentOptions(current) {
+  return Object.entries(data.owners || {})
+    .filter(([id]) => id.startsWith('feide:'))
+    .map(([id, name]) => ({ id, label: name || `Unnamed student (${id.slice(6, 12)})` }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'nb'))
+    .map((s) => `<option value="${h(s.id)}" ${s.id === current ? 'selected' : ''}>${h(s.label)}</option>`)
+    .join('');
+}
+
+function ownerControl(record) {
+  const options = studentOptions(record.submitted_by);
+  if (!options) return '<p class="muted">No student has logged in with Feide yet, so there is nobody to assign this to.</p>';
+  return `
+    <div class="owner-row">
+      <label>Owner
+        <select data-owner-select><option value="">Choose a student…</option>${options}</select>
+      </label>
+      <button class="small-btn" data-assign-owner>Assign</button>
+      <span class="muted">Now: ${h(who(record.submitted_by))}</span>
+    </div>`;
 }
 
 function wireStatusButtons(table, record) {
@@ -268,13 +317,22 @@ function wireStatusButtons(table, record) {
       )
     )
   );
+  detail.querySelector('[data-assign-owner]')?.addEventListener('click', () => {
+    const select = detail.querySelector('[data-owner-select]');
+    if (!select.value) {
+      flash('Choose a student first.', true);
+      return;
+    }
+    const label = select.options[select.selectedIndex].text;
+    run(() => api('POST', { action: 'set-owner', table, id: record.id, owner: select.value }), `${record.name} now belongs to ${label}`);
+  });
   detail.querySelector('[data-delete]').addEventListener('click', () => {
     if (!confirm(`Delete "${record.name}" for good? This cannot be undone. (Archive hides it instead.)`)) return;
     run(() => api('POST', { action: 'delete', table, id: record.id }), `Deleted ${record.name}`);
   });
 }
 
-function renderAnswers(type, charter) {
+function renderAnswers(type, charter, original) {
   const def = CHARTERS[type];
   const known = new Set();
   const sections = def.sections
@@ -284,7 +342,8 @@ function renderAnswers(type, charter) {
           known.add(f.key);
           const value = charter[f.key];
           if (!value) return '';
-          return `<div class="answer">${f.label ? `<span class="answer-label">${h(f.label)}</span>` : ''}<p>${h(value)}</p></div>`;
+          const said = original && original[f.key] && f.key !== 'name' && original[f.key] !== value ? original[f.key] : '';
+          return `<div class="answer">${f.label ? `<span class="answer-label">${h(f.label)}</span>` : ''}<p>${h(value)}</p>${said ? `<p class="answer-original"><span class="muted">Norwegian original:</span> ${h(said)}</p>` : ''}</div>`;
         })
         .join('');
       return rows ? `<div class="answer-section"><h4>${s.num}. ${h(s.title)}</h4>${rows}</div>` : '';
@@ -410,6 +469,7 @@ function renderVillageDetail(v) {
       <h2>${h(v.name)}</h2>
       ${badge(v.status)}
       <p class="muted">${v.charter_type === 'shadow' ? 'Shadow Charter' : 'Village Charter'} · sent by ${h(who(v.submitted_by))}</p>
+      ${groupLine(v)}
     </div>
     ${statusButtons('tribes', v)}
 
@@ -459,7 +519,8 @@ function renderVillageDetail(v) {
 
       <section>
         <h3>The students' answers</h3>
-        ${renderAnswers(v.charter_type === 'shadow' ? 'shadow' : 'village', v.charter || {})}
+        ${v.source_lang === 'no' ? '<p class="muted">Written in Norwegian by the students, translated to English when they sent it.</p>' : ''}
+        ${renderAnswers(v.charter_type === 'shadow' ? 'shadow' : 'village', v.charter || {}, v.charter_original)}
       </section>
     </div>`;
 
@@ -545,7 +606,8 @@ function renderVillagerDetail(c) {
 
       <section>
         <h3>The student's answers</h3>
-        ${renderAnswers('villager', c.charter || {})}
+        ${c.source_lang === 'no' ? '<p class="muted">Written in Norwegian by the student, translated to English when it was sent.</p>' : ''}
+        ${renderAnswers('villager', c.charter || {}, c.charter_original)}
       </section>
     </div>`;
 
@@ -593,6 +655,26 @@ function renderSettings() {
   );
 }
 
-reload().catch((err) => {
-  if (err.message !== 'Logged out') showLogin();
-});
+// A teacher whose Feide user is marked as admin gets straight in; anyone else
+// sees the login screen (with the Feide button when Feide is set up).
+async function start() {
+  try {
+    const session = await fetch('/api/session', { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .catch(() => ({}));
+    feideEnabled = Boolean(session.feideEnabled);
+    if (session.authenticated) {
+      await fetch('/api/admin/login', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feide: true }),
+      });
+    }
+    await reload();
+  } catch (err) {
+    if (err.message !== 'Logged out') showLogin();
+  }
+}
+
+start();

@@ -1,7 +1,8 @@
 const crypto = require('crypto');
 const { parseCookies } = require('./_lib/cookies');
-const { verifySessionToken, SESSION_COOKIE } = require('./_lib/session');
+const { verifySessionToken, SESSION_COOKIE, withSessionRenewal } = require('./_lib/session');
 const { getSupabaseAdmin } = require('./_lib/supabaseAdmin');
+const { translateToEnglish } = require('./_lib/translate');
 
 const TYPES = ['village', 'shadow', 'villager'];
 const MAX_KEYS = 60;
@@ -61,18 +62,75 @@ async function submissionsOpen(supabase) {
   return data ? data.value === true : true;
 }
 
+// The columns a student gets back for their own villages. submitted_by is
+// left out on purpose.
+const VILLAGE_COLUMNS = 'id, name, status, charter, charter_original, source_lang, charter_type, territory, updated_at, created_at, join_code';
+
+// Villages the student started, plus the ones they joined with a group code.
+async function myVillages(supabase, user) {
+  const { data: memberRows, error: memberErr } = await supabase.from('village_members').select('tribe_id').eq('user_id', user);
+  if (memberErr) return { data: null, error: memberErr };
+  const ids = memberRows.map((r) => r.tribe_id);
+  const [owned, joined] = await Promise.all([
+    supabase.from('tribes').select(VILLAGE_COLUMNS).eq('submitted_by', user),
+    ids.length ? supabase.from('tribes').select(VILLAGE_COLUMNS).in('id', ids) : Promise.resolve({ data: [], error: null }),
+  ]);
+  const error = owned.error || joined.error;
+  if (error) return { data: null, error };
+  const byId = new Map();
+  for (const v of [...owned.data, ...joined.data]) byId.set(v.id, v);
+  const list = [...byId.values()].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+  return { data: list.map(({ created_at, ...rest }) => rest), error: null };
+}
+
+// A village can be edited by whoever started it and by the students who joined
+// with its group code.
+async function mayEditVillage(supabase, tribe, user) {
+  if (tribe.submitted_by === user) return true;
+  const { data } = await supabase.from('village_members').select('user_id').eq('tribe_id', tribe.id).eq('user_id', user).maybeSingle();
+  return Boolean(data);
+}
+
+// No I, O, 0 or 1, so a code read aloud or copied from a screen is not mixed up.
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const CODE_LENGTH = 6;
+function newJoinCode() {
+  let code = '';
+  for (const byte of crypto.randomBytes(CODE_LENGTH)) code += CODE_ALPHABET[byte % CODE_ALPHABET.length];
+  return code;
+}
+
+async function handleJoin(supabase, user, rawCode) {
+  const code = String(rawCode || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const notFound = async () => {
+    // Slows down anyone guessing codes.
+    await new Promise((r) => setTimeout(r, 600));
+    return json(404, { error: 'No village has that code.' });
+  };
+  if (code.length !== CODE_LENGTH) return notFound();
+
+  const { data: tribe, error } = await supabase.from('tribes').select('id, name, status, submitted_by').eq('join_code', code).maybeSingle();
+  if (error) return json(500, { error: error.message });
+  if (!tribe) return notFound();
+  if (tribe.status !== 'pending') return json(409, { error: 'This village has already been reviewed by your teacher.' });
+
+  if (tribe.submitted_by !== user) {
+    const { error: memberErr } = await supabase
+      .from('village_members')
+      .upsert({ tribe_id: tribe.id, user_id: user }, { onConflict: 'tribe_id,user_id' });
+    if (memberErr) return json(500, { error: memberErr.message });
+  }
+  return json(200, { ok: true, id: tribe.id, name: tribe.name });
+}
+
 async function handleGet(supabase, user) {
   const [open, villagesRes, myVillagesRes, myVillagersRes] = await Promise.all([
     submissionsOpen(supabase),
     supabase.from('tribes').select('id, name, status').in('status', ['pending', 'approved']).order('name'),
-    supabase
-      .from('tribes')
-      .select('id, name, status, charter, charter_type, territory, updated_at')
-      .eq('submitted_by', user)
-      .order('created_at'),
+    myVillages(supabase, user),
     supabase
       .from('characters')
-      .select('id, name, status, charter, tribe_id, updated_at')
+      .select('id, name, status, charter, charter_original, source_lang, tribe_id, updated_at')
       .eq('submitted_by', user)
       .order('created_at'),
   ]);
@@ -82,16 +140,20 @@ async function handleGet(supabase, user) {
   return json(200, {
     me: user,
     open,
+    // Norwegian writing needs a translation key on the server.
+    translation: Boolean((process.env.DEEPL_API_KEY || '').trim()),
     villages: villagesRes.data,
     mine: { villages: myVillagesRes.data, villagers: myVillagersRes.data },
   });
 }
 
-async function saveVillage(supabase, user, body, charter, name) {
+async function saveVillage(supabase, user, body, charter, name, extra) {
   const map = cleanMap(body.map);
   const fields = {
     name,
     charter,
+    charter_original: extra.original,
+    source_lang: extra.lang,
     charter_type: body.type,
     resource: (charter.main_resource || '').slice(0, 200),
     updated_at: new Date().toISOString(),
@@ -100,12 +162,12 @@ async function saveVillage(supabase, user, body, charter, name) {
   if (body.id) {
     const { data: existing, error } = await supabase
       .from('tribes')
-      .select('id, status, territory')
+      .select('id, status, territory, submitted_by')
       .eq('id', body.id)
-      .eq('submitted_by', user)
       .maybeSingle();
     if (error) return json(500, { error: error.message });
-    if (!existing) return json(404, { error: 'Submission not found' });
+    // A village that is not yours looks exactly like one that does not exist.
+    if (!existing || !(await mayEditVillage(supabase, existing, user))) return json(404, { error: 'Submission not found' });
     if (existing.status !== 'pending') return json(409, { error: 'This village has already been reviewed by your teacher.' });
 
     const territory = { ...(existing.territory || {}), ...(map || {}) };
@@ -115,20 +177,28 @@ async function saveVillage(supabase, user, body, charter, name) {
   }
 
   const id = newId('tribe', name);
-  const { error: insErr } = await supabase.from('tribes').insert({
-    id,
-    ...fields,
-    territory: { region_name: '', ...(map || {}) },
-    culture: '',
-    relations: {},
-    status: 'pending',
-    submitted_by: user,
-  });
+  // The code has to be unique; in the rare case of a clash, try another one.
+  let insErr = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    ({ error: insErr } = await supabase.from('tribes').insert({
+      id,
+      ...fields,
+      territory: { region_name: '', ...(map || {}) },
+      culture: '',
+      relations: {},
+      status: 'pending',
+      submitted_by: user,
+      join_code: newJoinCode(),
+    }));
+    if (!insErr || insErr.code !== '23505' || !/join_code/.test(insErr.message || '')) break;
+  }
   if (insErr) return json(500, { error: insErr.message });
+  const { error: memberErr } = await supabase.from('village_members').insert({ tribe_id: id, user_id: user });
+  if (memberErr) console.error('Could not add the creator to the group:', memberErr.message);
   return json(200, { ok: true, id });
 }
 
-async function saveVillager(supabase, user, body, charter, name) {
+async function saveVillager(supabase, user, body, charter, name, extra) {
   const tribeId = String(body.tribe_id || '');
   const { data: tribe, error: tribeErr } = await supabase
     .from('tribes')
@@ -142,10 +212,12 @@ async function saveVillager(supabase, user, body, charter, name) {
   const fields = {
     name,
     charter,
+    charter_original: extra.original,
+    source_lang: extra.lang,
     tribe_id: tribe.id,
     role: (charter.role || '').slice(0, 120),
     goal: charter.goal || '',
-    description: charter.appearance || '',
+    description: [charter.appearance, charter.personality].filter(Boolean).join('\n\n'),
     strengths: charter.strengths ? [charter.strengths] : [],
     weaknesses: charter.weaknesses ? [charter.weaknesses] : [],
     student_name: studentName(user),
@@ -176,7 +248,7 @@ async function saveVillager(supabase, user, body, charter, name) {
   return json(200, { ok: true, id });
 }
 
-exports.handler = async (event) => {
+exports.handler = withSessionRenewal(async (event) => {
   const user = await requireUser(event);
   if (!user) return json(401, { error: 'Not logged in' });
 
@@ -196,13 +268,32 @@ exports.handler = async (event) => {
     return json(400, { error: 'Invalid JSON' });
   }
 
+  if (body.action === 'join') return handleJoin(supabase, user, body.code);
+
   if (!TYPES.includes(body.type)) return json(400, { error: 'Unknown form type' });
   const charter = cleanCharter(body.charter);
   if (!charter) return json(400, { error: 'Invalid answers' });
   const name = (charter.name || '').slice(0, MAX_NAME);
   if (!name) return json(400, { error: 'A name is required.' });
 
+  // A student who wrote in Norwegian gets the answers translated here, once,
+  // when they send. The English version is what the game shows; the Norwegian
+  // original is kept next to it. If the translation fails nothing is saved,
+  // so the student can simply press send again.
+  let saved = charter;
+  const extra = { lang: 'en', original: null };
+  if (body.lang === 'no') {
+    try {
+      saved = await translateToEnglish(charter);
+    } catch (e) {
+      console.error('Translation failed:', e.code || e.message);
+      return json(503, { error: 'translation_unavailable' });
+    }
+    extra.lang = 'no';
+    extra.original = charter;
+  }
+
   return body.type === 'villager'
-    ? saveVillager(supabase, user, body, charter, name)
-    : saveVillage(supabase, user, body, charter, name);
-};
+    ? saveVillager(supabase, user, body, saved, name, extra)
+    : saveVillage(supabase, user, body, saved, name, extra);
+});

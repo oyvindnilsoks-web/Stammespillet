@@ -23,9 +23,10 @@ exports.handler = async (event) => {
 
   const params = new URLSearchParams({
     response_type: 'code',
-    client_id: process.env.FEIDE_CLIENT_ID,
+    client_id: (process.env.FEIDE_CLIENT_ID || '').trim(),
     redirect_uri: redirectUri(event),
-    scope: 'openid',
+    // "profile" is what gives us the student's name from the userinfo endpoint.
+    scope: 'openid profile',
     state,
     nonce,
     code_challenge: challenge,
@@ -33,15 +34,20 @@ exports.handler = async (event) => {
   });
 
   const cookieOpts = { maxAge: 600 };
+  const cookies = [
+    serializeCookie('feide_state', state, cookieOpts),
+    serializeCookie('feide_nonce', nonce, cookieOpts),
+    serializeCookie('feide_verifier', verifier, cookieOpts),
+  ];
+  // The admin page asks to land back on itself after login. Nothing else is
+  // accepted, so this can never become an open redirect.
+  if ((event.queryStringParameters || {}).next === '/admin.html') {
+    cookies.push(serializeCookie('feide_next', '/admin.html', cookieOpts));
+  }
+
   return {
     statusCode: 302,
-    multiValueHeaders: {
-      'Set-Cookie': [
-        serializeCookie('feide_state', state, cookieOpts),
-        serializeCookie('feide_nonce', nonce, cookieOpts),
-        serializeCookie('feide_verifier', verifier, cookieOpts),
-      ],
-    },
+    multiValueHeaders: { 'Set-Cookie': cookies },
     headers: { Location: `${oidc.authorization_endpoint}?${params.toString()}` },
   };
 };

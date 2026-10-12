@@ -1,28 +1,23 @@
-import { supabase } from './supabaseClient.js';
 import { SUPABASE_URL } from './config.js';
 
-// Generic content loaders - work for any number of rows, nothing about the
-// example data is hardcoded here. RLS only returns approved tribes/characters
-// (and their media) to the browser; pending student submissions stay hidden.
+// Generic content loader - works for any number of rows, nothing about the
+// example data is hardcoded here. The content comes from /api/content, which
+// needs a login and only returns approved villages, villagers and their media.
+// The browser never reads these tables directly, so nobody outside the class
+// can read what the students wrote.
 
 export async function loadAllContent() {
-  const [tribesRes, charactersRes, scenesRes, mediaRes] = await Promise.all([
-    supabase.from('tribes').select('*').order('name'),
-    supabase.from('characters').select('*').order('name'),
-    supabase.from('scenes').select('*'),
-    supabase.from('media').select('*').order('sort_order').order('created_at'),
-  ]);
-
-  if (tribesRes.error) throw tribesRes.error;
-  if (charactersRes.error) throw charactersRes.error;
-  if (scenesRes.error) throw scenesRes.error;
-  if (mediaRes.error) throw mediaRes.error;
-
-  const tribes = new Map(tribesRes.data.map((t) => [t.id, t]));
-  const characters = new Map(charactersRes.data.map((c) => [c.id, c]));
-  const scenes = new Map(scenesRes.data.map((s) => [s.id, s]));
-
-  return { tribes, characters, scenes, media: mediaRes.data };
+  const res = await fetch('/api/content', { credentials: 'same-origin' });
+  if (!res.ok) {
+    throw new Error(res.status === 401 ? 'You are logged out. Log in again.' : 'Could not load the game content.');
+  }
+  const { tribes, characters, scenes, media } = await res.json();
+  return {
+    tribes: new Map(tribes.map((t) => [t.id, t])),
+    characters: new Map(characters.map((c) => [c.id, c])),
+    scenes: new Map(scenes.map((s) => [s.id, s])),
+    media,
+  };
 }
 
 // Older content uses paths under /assets/images; images uploaded through the

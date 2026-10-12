@@ -1,5 +1,5 @@
 const { parseCookies } = require('./_lib/cookies');
-const { verifySessionToken, SESSION_COOKIE } = require('./_lib/session');
+const { verifySessionToken, SESSION_COOKIE, withSessionRenewal } = require('./_lib/session');
 const { getSupabaseAdmin } = require('./_lib/supabaseAdmin');
 
 async function requireFeideId(event) {
@@ -13,7 +13,7 @@ async function requireFeideId(event) {
   }
 }
 
-exports.handler = async (event) => {
+exports.handler = withSessionRenewal(async (event) => {
   const feideId = await requireFeideId(event);
   if (!feideId) {
     return { statusCode: 401, body: JSON.stringify({ error: 'Not logged in' }) };
@@ -54,4 +54,4 @@ exports.handler = async (event) => {
   }
 
   return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
-};
+});

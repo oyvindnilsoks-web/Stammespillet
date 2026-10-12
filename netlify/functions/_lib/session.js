@@ -1,7 +1,20 @@
 const { SignJWT, jwtVerify } = require('jose');
+const { parseCookies, serializeCookie } = require('./cookies');
 
 const SESSION_COOKIE = 'stammespillet_session';
-const SESSION_TTL_SECONDS = 12 * 60 * 60; // 12 hours
+
+// A session ends after this long without activity. Every API call renews it
+// (see withSessionRenewal), so a student who keeps working is never thrown
+// out, while a classroom PC that someone forgot to log out of stops being
+// logged in after a few hours.
+const SESSION_TTL_SECONDS = 4 * 60 * 60;
+const SESSION_RENEW_AFTER_SECONDS = 15 * 60;
+
+// The Feide id_token from login, kept so logout can tell Feide which service
+// and user is logging out (Feide requires it as id_token_hint). It lives
+// longer than the session so a renewed session can still log out of Feide.
+const ID_TOKEN_COOKIE = 'feide_idt';
+const ID_TOKEN_TTL_SECONDS = 24 * 60 * 60;
 
 function getSecret() {
   const secret = process.env.SESSION_SECRET;
@@ -11,11 +24,9 @@ function getSecret() {
   return new TextEncoder().encode(secret);
 }
 
-// feideId is the session's identity key. While Feide is not connected it is
-// the student's self-chosen login name, prefixed "name:" (see
-// auth-name-login.js). Once Feide is wired up it should become the OIDC
-// id_token's `sub` claim instead - a stable, unique, non-personal identifier,
-// never a name, birthdate, or other personal data.
+// feideId is the session's identity key: "feide:<sub>" for a real Feide login
+// (a stable, unique id, never a name), "name:<typed name>" for the name login
+// and "dev:<id>" for the engine-testing login.
 async function createSessionToken(feideId) {
   return new SignJWT({ sub: feideId })
     .setProtectedHeader({ alg: 'HS256' })
@@ -27,6 +38,42 @@ async function createSessionToken(feideId) {
 async function verifySessionToken(token) {
   const { payload } = await jwtVerify(token, getSecret());
   return payload.sub;
+}
+
+// Returns a Set-Cookie value with a fresh session token when the current one
+// is valid but older than SESSION_RENEW_AFTER_SECONDS, otherwise null.
+// Renewing at most every 15 minutes avoids rewriting the cookie on every call.
+async function renewedSessionCookie(event) {
+  const token = parseCookies(event)[SESSION_COOKIE];
+  if (!token) return null;
+  const { payload } = await jwtVerify(token, getSecret());
+  const age = Math.floor(Date.now() / 1000) - (payload.iat || 0);
+  if (age < SESSION_RENEW_AFTER_SECONDS) return null;
+  const fresh = await createSessionToken(payload.sub);
+  return serializeCookie(SESSION_COOKIE, fresh, { maxAge: SESSION_TTL_SECONDS });
+}
+
+// Wraps an API handler so a successful call from a logged-in user also
+// extends their session. Failed calls and anonymous calls are left alone.
+function withSessionRenewal(handler) {
+  return async (event, context) => {
+    const res = await handler(event, context);
+    try {
+      if (res && res.statusCode < 400) {
+        const cookie = await renewedSessionCookie(event);
+        if (cookie) {
+          if (res.multiValueHeaders && res.multiValueHeaders['Set-Cookie']) {
+            res.multiValueHeaders['Set-Cookie'] = [].concat(res.multiValueHeaders['Set-Cookie'], cookie);
+          } else {
+            res.headers = { ...(res.headers || {}), 'Set-Cookie': cookie };
+          }
+        }
+      }
+    } catch {
+      // No valid session, nothing to renew.
+    }
+    return res;
+  };
 }
 
 // Teacher admin session: same secret, but a separate cookie and an
@@ -56,8 +103,13 @@ async function isAdminToken(token) {
 module.exports = {
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
+  SESSION_RENEW_AFTER_SECONDS,
+  ID_TOKEN_COOKIE,
+  ID_TOKEN_TTL_SECONDS,
   createSessionToken,
   verifySessionToken,
+  renewedSessionCookie,
+  withSessionRenewal,
   ADMIN_COOKIE,
   ADMIN_TTL_SECONDS,
   createAdminToken,

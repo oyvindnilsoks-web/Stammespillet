@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { parseCookies } = require('./_lib/cookies');
 const { ADMIN_COOKIE, isAdminToken } = require('./_lib/session');
 const { getSupabaseAdmin } = require('./_lib/supabaseAdmin');
+const { loadOwners } = require('./_lib/students');
 
 const BUCKET = 'media';
 const STATUSES = ['pending', 'approved', 'rejected', 'archived'];
@@ -30,15 +31,29 @@ function num(v) {
 }
 
 async function loadAll(supabase) {
-  const [villages, villagers, media, settings] = await Promise.all([
+  const [villages, villagers, media, settings, memberRows] = await Promise.all([
     supabase.from('tribes').select('*').order('created_at'),
     supabase.from('characters').select('*').order('created_at'),
     supabase.from('media').select('*').order('sort_order').order('created_at'),
     supabase.from('settings').select('key, value'),
+    supabase.from('village_members').select('tribe_id, user_id').order('joined_at'),
   ]);
-  const err = villages.error || villagers.error || media.error || settings.error;
+  const err = villages.error || villagers.error || media.error || settings.error || memberRows.error;
   if (err) return json(500, { error: err.message });
+  // Feide names for "sent by" in the admin lists. A failure here must not
+  // hide the rest of the page, so the teacher just sees "unknown student".
+  let owners = {};
+  try {
+    owners = await loadOwners();
+  } catch (e) {
+    console.error('Could not load student names:', e.message);
+  }
+  // tribe id -> the students in its group
+  const members = {};
+  for (const m of memberRows.data) (members[m.tribe_id] = members[m.tribe_id] || []).push(m.user_id);
   return json(200, {
+    owners,
+    members,
     villages: villages.data,
     villagers: villagers.data,
     media: media.data,
@@ -107,6 +122,28 @@ async function setStatus(supabase, { table, id, status }) {
   }
   const { error } = await supabase.from(table).update({ status, updated_at: new Date().toISOString() }).eq('id', id);
   if (error) return json(500, { error: error.message });
+  return json(200, { ok: true });
+}
+
+// Moves a submission to another student, for example a village that was typed
+// in from a paper sheet. The new owner has to be a Feide user who has logged in
+// at least once, so they exist in the students table.
+async function setOwner(supabase, { table, id, owner }) {
+  if (!['tribes', 'characters'].includes(table)) return json(400, { error: 'Invalid table' });
+  if (typeof owner !== 'string' || !owner.startsWith('feide:')) {
+    return json(400, { error: 'Choose a student who has logged in with Feide.' });
+  }
+  const { data: student, error: studentErr } = await supabase.from('students').select('user_id').eq('user_id', owner).maybeSingle();
+  if (studentErr) return json(500, { error: studentErr.message });
+  if (!student) return json(404, { error: 'That student has not logged in with Feide yet.' });
+
+  const { data, error } = await supabase
+    .from(table)
+    .update({ submitted_by: owner, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('id');
+  if (error) return json(500, { error: error.message });
+  if (!data || !data.length) return json(404, { error: 'Submission not found' });
   return json(200, { ok: true });
 }
 
@@ -195,6 +232,7 @@ const ACTIONS = {
   'save-village': saveVillage,
   'save-villager': saveVillager,
   'set-status': setStatus,
+  'set-owner': setOwner,
   delete: deleteRow,
   'upload-url': uploadUrl,
   'add-media': addMedia,

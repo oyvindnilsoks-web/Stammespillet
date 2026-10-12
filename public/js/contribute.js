@@ -1,32 +1,183 @@
-import { loadSubmissions, sendSubmission } from './api.js';
+import { loadSubmissions, sendSubmission, joinVillage, loadDrafts, putDraft, removeDraft } from './api.js';
 import { CHARTERS, allFields } from './charters.js';
 import { escapeHtml } from './translate.js';
 
 // Temporary page where students type in their village (one per group) and
 // their own villager. Everything lands as "pending" until the teacher
-// approves it on /admin.html. Drafts are kept in localStorage so a closed
-// tab or an expired login never costs a student their writing.
+// approves it on /admin.html.
+//
+// A student can write in English or in Norwegian (the choice at the top). A
+// Norwegian text is translated to English by the server when it is sent; the
+// student can read the English version afterwards but not change it.
+//
+// Unsent text is never lost. Every keystroke is saved in the browser at once,
+// and about a second and a half later also on the server, so the text follows
+// the student to another computer. If the network or the login drops, the
+// browser copy is still there and is pushed to the server when it can be.
 
 const MAP_IMAGE = '/assets/images/lore/overview-map.jpg';
-const STATUS_LABEL = { pending: 'Waiting for teacher', approved: 'Approved', rejected: 'Not approved', archived: 'Archived' };
+const PUSH_DELAY_MS = 1500;
+const RETRY_DELAY_MS = 10000;
+const LANG_KEY = 'contribute-lang';
+
+// Every sentence the page shows. In English the Norwegian help is shown in
+// grey next to it; in Norwegian only the Norwegian is shown.
+const TEXT = {
+  en: {
+    title: 'Contribute',
+    intro: 'Write your answers in <strong>English</strong>. The grey text is Norwegian help. Your writing is saved while you type, so you can continue on another computer.',
+    closed: 'Sending is closed right now. <span class="no-help">Innsending er stengt akkurat nå.</span>',
+    mySubmissions: 'My submissions',
+    nothingSent: 'Nothing sent yet.',
+    status: { pending: 'Waiting for teacher', approved: 'Approved', rejected: 'Not approved', archived: 'Archived' },
+    kinds: { village: 'Village', shadow: 'Shadow village', villager: 'Villager' },
+    edit: 'Edit',
+    tabVillage: 'Our village',
+    tabVillager: 'My villager',
+    oneWrites: 'One person per group writes the village. <span class="no-help">Én i gruppa skriver inn landsbyen.</span>',
+    typeVillage: 'Village Charter',
+    typeShadow: 'Shadow Charter <span class="no-help">(den onde landsbyen)</span>',
+    everyoneWrites: 'Everyone writes their own villager. <span class="no-help">Alle skriver sin egen innbygger.</span>',
+    yourVillage: 'Your village * <span class="no-help">Landsbyen din</span>',
+    choose: 'Choose your village…',
+    waiting: ' (waiting for teacher)',
+    noVillages: 'No villages yet — your group has to send in the village first.',
+    editing: 'Editing:',
+    restored: (button) =>
+      `Your unsent text was brought back. Remember to press <strong>${button}</strong> when you are done. <span class="no-help">Teksten du ikke har sendt ennå er hentet tilbake.</span>`,
+    send: 'Send to teacher',
+    save: 'Save changes',
+    mapLabel: 'Click the map where your village is <span class="no-help">Klikk på kartet der landsbyen ligger</span>',
+    needName: 'Please write a name first.',
+    needVillage: 'Please choose your village.',
+    sending: 'Sending…',
+    sent: 'Sent! Your teacher will look at it.',
+    translationDown: 'The translation does not work right now. Try again in a minute.',
+    loggedOutMessage: 'You are logged out. Log in again - your text is saved.',
+    englishVersion: 'English version',
+    loading: 'Loading…',
+    groupCode: 'Group code',
+    groupCodeHelp: 'Give this code to the others in your group. They enter it under "Join your group" and can then write in this village with you.',
+    joinTitle: 'Join your group',
+    joinHelp: 'Has someone in your group already started the village? Enter the group code to join it.',
+    joinPlaceholder: 'Group code',
+    joinButton: 'Join',
+    joining: 'Joining…',
+    joined: (name) => `You joined ${name}.`,
+    joinNoCode: 'Write the group code first.',
+    draft: {
+      saving: 'Saving…',
+      saved: (time) => `✓ Saved ${time}`,
+      offline: '✓ Saved on this computer. It is saved online when the connection is back.',
+      offlineNoStorage: "This browser can't save your text and there is no connection - send it before you close the page!",
+      loggedOut: 'You are logged out. Log in again to keep saving.',
+      failed: 'Could not save online.',
+      kept: ' Your text is kept on this computer.',
+      keptNot: ' Send it before you close the page!',
+    },
+  },
+  no: {
+    title: 'Bidra',
+    intro: 'Skriv svarene dine på <strong>norsk</strong>. De blir oversatt til engelsk når du sender. Teksten lagres mens du skriver, så du kan fortsette på en annen PC.',
+    closed: 'Innsending er stengt akkurat nå.',
+    mySubmissions: 'Mine innsendinger',
+    nothingSent: 'Ingenting er sendt ennå.',
+    status: { pending: 'Venter på læreren', approved: 'Godkjent', rejected: 'Ikke godkjent', archived: 'Arkivert' },
+    kinds: { village: 'Landsby', shadow: 'Skyggelandsby', villager: 'Innbygger' },
+    edit: 'Rediger',
+    tabVillage: 'Landsbyen vår',
+    tabVillager: 'Min innbygger',
+    oneWrites: 'Én i gruppa skriver inn landsbyen.',
+    typeVillage: 'Vanlig landsby',
+    typeShadow: 'Skyggelandsby (den onde landsbyen)',
+    everyoneWrites: 'Alle skriver sin egen innbygger.',
+    yourVillage: 'Landsbyen din *',
+    choose: 'Velg landsbyen din…',
+    waiting: ' (venter på læreren)',
+    noVillages: 'Ingen landsbyer ennå. Gruppa deres må sende inn landsbyen først.',
+    editing: 'Du redigerer:',
+    restored: (button) => `Teksten du ikke hadde sendt er hentet tilbake. Husk å trykke <strong>${button}</strong> når du er ferdig.`,
+    send: 'Send til læreren',
+    save: 'Lagre endringer',
+    mapLabel: 'Klikk på kartet der landsbyen ligger',
+    needName: 'Skriv et navn først.',
+    needVillage: 'Velg landsbyen din.',
+    sending: 'Sender…',
+    sent: 'Sendt! Læreren ser på det. Den engelske versjonen finner du under «Mine innsendinger».',
+    translationDown: 'Oversettelsen virker ikke akkurat nå. Prøv igjen om litt.',
+    loggedOutMessage: 'Du er logget ut. Logg inn igjen, så er teksten din fortsatt lagret.',
+    englishVersion: 'Engelsk versjon (maskinoversatt, du kan ikke endre den)',
+    loading: 'Laster…',
+    groupCode: 'Gruppekode',
+    groupCodeHelp: 'Gi denne koden til de andre i gruppa. De skriver den inn under «Bli med i gruppa», og kan da skrive i denne landsbyen sammen med deg.',
+    joinTitle: 'Bli med i gruppa',
+    joinHelp: 'Har noen i gruppa allerede startet landsbyen? Skriv inn gruppekoden for å bli med.',
+    joinPlaceholder: 'Gruppekode',
+    joinButton: 'Bli med',
+    joining: 'Blir med…',
+    joined: (name) => `Du er med i ${name}.`,
+    joinNoCode: 'Skriv gruppekoden først.',
+    draft: {
+      saving: 'Lagrer…',
+      saved: (time) => `✓ Lagret ${time}`,
+      offline: '✓ Lagret på denne PC-en. Den lagres på nett når nettet er tilbake.',
+      offlineNoStorage: 'Denne nettleseren kan ikke lagre teksten din, og nettet er borte. Send den før du lukker siden!',
+      loggedOut: 'Du er logget ut. Logg inn igjen for å fortsette å lagre.',
+      failed: 'Kunne ikke lagre på nett.',
+      kept: ' Teksten din er lagret på denne PC-en.',
+      keptNot: ' Send den før du lukker siden!',
+    },
+  },
+};
+
+// Messages that come back from the server in English, shown in Norwegian
+// when the student is writing in Norwegian.
+const SERVER_MESSAGES_NO = {
+  'This village has already been reviewed by your teacher.': 'Læreren har allerede sett på landsbyen, så den kan ikke endres.',
+  'Your villager has already been reviewed by your teacher.': 'Læreren har allerede sett på innbyggeren, så den kan ikke endres.',
+  'Submissions are closed right now.': 'Innsending er stengt akkurat nå.',
+  'Choose your village from the list.': 'Velg landsbyen din fra lista.',
+  'A name is required.': 'Skriv et navn først.',
+  'No village has that code.': 'Ingen landsby har den koden.',
+};
 
 let root;
 let data;
 let tab = 'village';
+let lang = 'en';
 const editing = { village: null, villager: null };
 const form = { village: {}, villager: {} };
 const restored = { village: false, villager: false };
-let draftState = { ok: true, savedAt: null };
 
-// Drafts are keyed per logged-in student, so on a shared classroom PC one
-// student never sees - or overwrites - another student's unsent text.
-function draftKey(kind) {
-  return `contribute-draft:${data.me || 'unknown'}:${kind}:${editing[kind]?.id || 'new'}`;
+const L = () => TEXT[lang];
+
+function savedLang() {
+  try {
+    return localStorage.getItem(LANG_KEY) === 'no' ? 'no' : 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+// ---------- drafts: browser copy ----------
+
+let localOk = true; // false when this browser refuses to store anything
+let serverDrafts = new Map(); // `${kind}:${ref}` -> draft content from the server
+let serverFetched = false; // true when the list of server drafts loaded
+
+function refId(kind) {
+  return editing[kind]?.id || 'new';
+}
+
+// Keyed per logged-in student, so on a shared classroom PC one student never
+// sees - or overwrites - another student's unsent text.
+function localKey(kind, ref) {
+  return `contribute-draft:${data.me || 'unknown'}:${kind}:${ref}`;
 }
 
 // Key format used before drafts were stored per student.
-function legacyDraftKey(kind) {
-  return `contribute-draft-${kind}-${editing[kind]?.id || 'new'}`;
+function legacyLocalKey(kind, ref) {
+  return `contribute-draft-${kind}-${ref}`;
 }
 
 function storageWorks() {
@@ -39,79 +190,260 @@ function storageWorks() {
   }
 }
 
-function saveDraft(kind) {
+// The browser copy is { v: 2, form, dirty }. dirty means "has changes the
+// server has not confirmed yet". Older copies are plain forms and count as
+// dirty, so they are uploaded the first time they are seen.
+function readLocal(kind, ref) {
   try {
-    localStorage.setItem(draftKey(kind), JSON.stringify(form[kind]));
-    draftState = { ok: true, savedAt: new Date() };
-  } catch {
-    draftState = { ok: false, savedAt: null };
-  }
-  showDraftState();
-}
-
-function loadDraft(kind) {
-  try {
-    let raw = localStorage.getItem(draftKey(kind));
+    let raw = localStorage.getItem(localKey(kind, ref));
     if (raw === null) {
-      const legacy = localStorage.getItem(legacyDraftKey(kind));
-      if (legacy !== null) {
-        localStorage.setItem(draftKey(kind), legacy);
-        localStorage.removeItem(legacyDraftKey(kind));
-        raw = legacy;
-      }
+      const legacy = localStorage.getItem(legacyLocalKey(kind, ref));
+      if (legacy === null) return null;
+      localStorage.removeItem(legacyLocalKey(kind, ref));
+      raw = legacy;
     }
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.v === 2) return { form: parsed.form, dirty: parsed.dirty !== false };
+    return { form: parsed, dirty: true };
   } catch {
     return null;
   }
 }
 
-function clearDraft(kind) {
+function writeLocal(kind, ref, f, dirty) {
   try {
-    localStorage.removeItem(draftKey(kind));
+    localStorage.setItem(localKey(kind, ref), JSON.stringify({ v: 2, form: f, dirty }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function removeLocal(kind, ref) {
+  try {
+    localStorage.removeItem(localKey(kind, ref));
   } catch {}
+}
+
+function normalizeForm(kind, raw) {
+  const base = kind === 'village' ? { type: 'village', charter: {}, map: null } : { type: 'villager', charter: {}, tribe_id: '' };
+  const out = { ...base, lang, ...(raw && typeof raw === 'object' ? raw : {}) };
+  out.charter = { ...(out.charter || {}) };
+  out.lang = out.lang === 'no' ? 'no' : 'en';
+  if (kind === 'village' && out.type !== 'village' && out.type !== 'shadow') out.type = 'village';
+  if (kind === 'villager') out.type = 'villager';
+  return out;
+}
+
+function hasAnswers(kind) {
+  return Object.values(form[kind]?.charter || {}).some((v) => (v || '').trim());
+}
+
+// Which unsent text to bring back: a copy in this browser that the server has
+// not seen wins, because it is the newest thing the student typed. Otherwise
+// the server copy wins, which is how text arrives on a different computer.
+//
+// A draft that is older than the submission it belongs to is dropped. That
+// happens when someone else in the group has saved the village since: their
+// version is newer than a draft that was only started before they saved.
+function pickDraft(kind, ref, sub) {
+  const local = readLocal(kind, ref);
+  const key = `${kind}:${ref}`;
+  const entry = serverDrafts.get(key) || null;
+  const stale = entry && sub && sub.updated_at && Date.parse(entry.updatedAt) < Date.parse(sub.updated_at);
+  if (stale) {
+    serverDrafts.delete(key);
+    removeDraft(kind, ref);
+  }
+  const server = entry && !stale ? entry.content : null;
+  if (local && local.dirty) return { form: normalizeForm(kind, local.form), source: 'local' };
+  if (server) {
+    writeLocal(kind, ref, server, false);
+    return { form: normalizeForm(kind, server), source: 'server' };
+  }
+  if (local && !serverFetched) return { form: normalizeForm(kind, local.form), source: 'local-offline' };
+  // Saved on the server before, and gone from there since (it was sent from
+  // another computer): the browser copy is old news.
+  if (local) removeLocal(kind, ref);
+  return null;
+}
+
+// ---------- drafts: server copy ----------
+
+const pending = new Map(); // key -> { kind, ref, json } waiting to be saved online
+const timers = new Map(); // key -> push timer
+const inflight = new Set(); // keys with a request on the way
+let retryTimer = null;
+let syncState = { name: 'idle', at: null, message: '' };
+
+function setSync(name, extra = {}) {
+  syncState = { name, at: name === 'saved' ? new Date() : syncState.at, message: '', ...extra };
+  showDraftState();
 }
 
 function showDraftState() {
   const el = root?.querySelector('#draft-status');
   if (!el) return;
-  if (!draftState.ok) {
-    el.textContent = "This browser can't save your text - send it before you close the page!";
-    el.className = 'draft-status error';
-  } else if (draftState.savedAt) {
-    const time = draftState.savedAt.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' });
-    el.textContent = `✓ Saved on this computer ${time}`;
-    el.className = 'draft-status';
-  } else {
-    el.textContent = '';
-    el.className = 'draft-status';
+  const d = L().draft;
+  let text = '';
+  let isError = false;
+  const kept = localOk ? d.kept : d.keptNot;
+  switch (syncState.name) {
+    case 'saving':
+      text = d.saving;
+      break;
+    case 'saved':
+      text = d.saved(syncState.at.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' }));
+      break;
+    case 'offline':
+      if (localOk) text = d.offline;
+      else {
+        text = d.offlineNoStorage;
+        isError = true;
+      }
+      break;
+    case 'loggedout':
+      text = `${d.loggedOut}${kept}`;
+      isError = true;
+      break;
+    case 'failed':
+      text = `${syncState.message || d.failed}${kept}`;
+      isError = true;
+      break;
+    default:
+      break;
+  }
+  el.textContent = text;
+  el.className = isError ? 'draft-status error' : 'draft-status';
+}
+
+function queuePush(kind, ref) {
+  const key = `${kind}:${ref}`;
+  pending.set(key, { kind, ref, json: JSON.stringify(form[kind]) });
+  clearTimeout(timers.get(key));
+  timers.set(key, setTimeout(() => flushOne(key), PUSH_DELAY_MS));
+  if (syncState.name !== 'loggedout') setSync('saving');
+}
+
+// The copy in the browser is only marked as confirmed if it is still exactly
+// what was sent; the student may have typed more while the request was away.
+function markClean(item) {
+  const local = readLocal(item.kind, item.ref);
+  if (local && JSON.stringify(local.form) === item.json) writeLocal(item.kind, item.ref, local.form, false);
+}
+
+async function flushOne(key, options) {
+  const item = pending.get(key);
+  if (!item || inflight.has(key)) return;
+  inflight.add(key);
+  try {
+    await putDraft(item.kind, item.ref, JSON.parse(item.json), options);
+    if (pending.get(key) === item) {
+      pending.delete(key);
+      timers.delete(key);
+    }
+    markClean(item);
+    if (!pending.size) setSync('saved');
+  } catch (err) {
+    if (err.status === 401) {
+      setSync('loggedout');
+    } else if (err.status === 400 || err.status === 413 || err.status === 429) {
+      // Retrying cannot help: the server refused this text.
+      pending.delete(key);
+      setSync('failed', { message: lang === 'no' ? '' : err.message });
+    } else {
+      setSync('offline');
+      scheduleRetry();
+    }
+  } finally {
+    inflight.delete(key);
+    const newer = pending.get(key);
+    if (newer && newer !== item && syncState.name !== 'loggedout') flushOne(key);
   }
 }
 
+function flushAll(options) {
+  for (const key of [...pending.keys()]) {
+    clearTimeout(timers.get(key));
+    flushOne(key, options);
+  }
+}
+
+function scheduleRetry() {
+  if (retryTimer) return;
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    if (pending.size && syncState.name !== 'loggedout') flushAll();
+  }, RETRY_DELAY_MS);
+}
+
+let listenersInstalled = false;
+function installListeners() {
+  if (listenersInstalled) return;
+  listenersInstalled = true;
+  // Back online: save what could not be saved. Closing the tab or switching
+  // away: push at once, with keepalive so the request can outlive the page.
+  window.addEventListener('online', () => flushAll());
+  window.addEventListener('pagehide', () => flushAll({ keepalive: true }));
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushAll({ keepalive: true });
+  });
+}
+
+function saveDraft(kind) {
+  const ref = refId(kind);
+  form[kind].lang = lang;
+  localOk = writeLocal(kind, ref, form[kind], true);
+  queuePush(kind, ref);
+}
+
+// Called once a submission has been sent: the unsent text is no longer needed.
+async function clearDraft(kind) {
+  const ref = refId(kind);
+  const key = `${kind}:${ref}`;
+  clearTimeout(timers.get(key));
+  timers.delete(key);
+  pending.delete(key);
+  removeLocal(kind, ref);
+  serverDrafts.delete(key);
+  await removeDraft(kind, ref);
+}
+
+// ---------- forms ----------
+
+// A submission that was written in Norwegian is edited in Norwegian: the
+// form gets the student's own words, not the English translation.
 function formFromSubmission(kind, sub) {
+  const inNorwegian = sub.source_lang === 'no' && sub.charter_original;
+  const charter = { ...((inNorwegian ? sub.charter_original : sub.charter) || {}) };
+  const formLang = inNorwegian ? 'no' : 'en';
   if (kind === 'village') {
     const t = sub.territory || {};
     return {
       type: sub.charter_type || 'village',
-      charter: { ...(sub.charter || {}) },
+      lang: formLang,
+      charter,
       map: Number.isFinite(t.map_x) && Number.isFinite(t.map_y) ? { x: t.map_x, y: t.map_y } : null,
     };
   }
-  return { type: 'villager', charter: { ...(sub.charter || {}) }, tribe_id: sub.tribe_id || '' };
+  return { type: 'villager', lang: formLang, charter, tribe_id: sub.tribe_id || '' };
 }
 
 function startEditing(kind, sub) {
   editing[kind] = sub;
-  const draft = loadDraft(kind);
-  restored[kind] = !!draft;
-  form[kind] = draft || formFromSubmission(kind, sub);
+  const picked = pickDraft(kind, sub.id, sub);
+  restored[kind] = !!picked;
+  form[kind] = picked ? picked.form : normalizeForm(kind, formFromSubmission(kind, sub));
+  if (picked && picked.source !== 'server') queuePush(kind, sub.id);
 }
 
 function startNew(kind) {
   editing[kind] = null;
-  const draft = loadDraft(kind);
-  restored[kind] = !!draft;
-  form[kind] = draft || (kind === 'village' ? { type: 'village', charter: {}, map: null } : { type: 'villager', charter: {}, tribe_id: '' });
+  const picked = pickDraft(kind, 'new');
+  restored[kind] = !!picked;
+  form[kind] = picked ? picked.form : normalizeForm(kind, null);
+  if (picked && picked.source !== 'server') queuePush(kind, 'new');
 }
 
 function pickInitialForms() {
@@ -119,30 +451,80 @@ function pickInitialForms() {
   const pendingVillager = data.mine.villagers.find((v) => v.status === 'pending');
   pendingVillage ? startEditing('village', pendingVillage) : startNew('village');
   pendingVillager ? startEditing('villager', pendingVillager) : startNew('villager');
+  // The first form shown decides the language when it already has text.
+  if (restored[tab] || editing[tab]) lang = langOf(form[tab]);
+}
+
+// The language a form was written in; always English when this site has no translation key.
+function langOf(f) {
+  return data.translation && f.lang === 'no' ? 'no' : 'en';
+}
+
+function setLang(next) {
+  if (next === lang) return;
+  lang = next;
+  try {
+    localStorage.setItem(LANG_KEY, next);
+  } catch {}
+  // Forms with text remember the language they were written in.
+  for (const kind of ['village', 'villager']) {
+    if (hasAnswers(kind)) saveDraft(kind);
+    else form[kind].lang = next;
+  }
+  renderPage();
+}
+
+// What the English version of a Norwegian submission looks like: the
+// translated answers, grouped like the form. Read only.
+function renderEnglishVersion(type, sub) {
+  const def = CHARTERS[type];
+  if (!def) return '';
+  const charter = sub.charter || {};
+  const blocks = def.sections
+    .map((s) => {
+      const rows = s.fields
+        .map((f) => {
+          const value = charter[f.key];
+          if (!value) return '';
+          return `<p>${f.label ? `<strong>${escapeHtml(f.label)}:</strong> ` : ''}${escapeHtml(value)}</p>`;
+        })
+        .join('');
+      return rows ? `<div class="english-block"><h4>${escapeHtml(s.title)}</h4>${rows}</div>` : '';
+    })
+    .join('');
+  if (!blocks) return '';
+  return `<details class="english-version"><summary>${L().englishVersion}</summary>${blocks}</details>`;
 }
 
 function renderSubmissionList() {
+  const t = L();
   const items = [
-    ...data.mine.villages.map((v) => ({ kind: 'village', sub: v, label: v.charter_type === 'shadow' ? 'Shadow village' : 'Village' })),
-    ...data.mine.villagers.map((v) => ({ kind: 'villager', sub: v, label: 'Villager' })),
+    ...data.mine.villages.map((v) => ({ kind: 'village', sub: v, label: t.kinds[v.charter_type === 'shadow' ? 'shadow' : 'village'], type: v.charter_type === 'shadow' ? 'shadow' : 'village' })),
+    ...data.mine.villagers.map((v) => ({ kind: 'villager', sub: v, label: t.kinds.villager, type: 'villager' })),
   ];
-  if (!items.length) return '<p class="muted">Nothing sent yet.</p>';
+  if (!items.length) return `<p class="muted">${t.nothingSent}</p>`;
   return `<ul class="submission-list">${items
     .map(
-      ({ kind, sub, label }) => `
+      ({ kind, sub, label, type }) => `
       <li>
         <span><strong>${escapeHtml(sub.name)}</strong> <span class="muted">· ${label}</span></span>
-        <span class="status-badge status-${escapeHtml(sub.status)}">${STATUS_LABEL[sub.status] || escapeHtml(sub.status)}</span>
-        ${sub.status === 'pending' && data.open ? `<button class="small-btn" data-edit-kind="${kind}" data-edit-id="${escapeHtml(sub.id)}">Edit</button>` : ''}
+        <span class="status-badge status-${escapeHtml(sub.status)}">${t.status[sub.status] || escapeHtml(sub.status)}</span>
+        ${sub.status === 'pending' && data.open ? `<button class="small-btn" data-edit-kind="${kind}" data-edit-id="${escapeHtml(sub.id)}">${t.edit}</button>` : ''}
+        ${sub.source_lang === 'no' ? renderEnglishVersion(type, sub) : ''}
       </li>`
     )
     .join('')}</ul>`;
 }
 
 function renderField(field, value) {
-  const label = field.label
-    ? `<span class="field-label">${escapeHtml(field.label)}${field.required ? ' *' : ''} <span class="no-help">${escapeHtml(field.labelNo || '')}</span></span>`
-    : '';
+  let label = '';
+  if (field.label) {
+    const star = field.required ? ' *' : '';
+    label =
+      lang === 'no'
+        ? `<span class="field-label">${escapeHtml(field.labelNo || field.label)}${star}</span>`
+        : `<span class="field-label">${escapeHtml(field.label)}${star} <span class="no-help">${escapeHtml(field.labelNo || '')}</span></span>`;
+  }
   const input =
     field.type === 'text'
       ? `<input type="text" name="${field.key}" maxlength="${field.key === 'name' ? 60 : 200}" value="${escapeHtml(value || '')}">`
@@ -154,9 +536,9 @@ function renderMapPicker(map) {
   const marker = map ? `style="left:${map.x}%;top:${map.y}%"` : 'hidden';
   return `
     <div class="charter-field">
-      <span class="field-label">Click the map where your village is <span class="no-help">Klikk på kartet der landsbyen ligger</span></span>
+      <span class="field-label">${L().mapLabel}</span>
       <div class="map-picker" id="map-picker">
-        <img src="${MAP_IMAGE}" alt="Map of the world" draggable="false">
+        <img src="${MAP_IMAGE}" alt="${lang === 'no' ? 'Kart over verden' : 'Map of the world'}" draggable="false">
         <div class="map-marker" id="map-marker" ${marker}></div>
       </div>
     </div>`;
@@ -165,69 +547,77 @@ function renderMapPicker(map) {
 function renderSections(kind) {
   const f = form[kind];
   const sections = CHARTERS[f.type].sections;
+  const no = lang === 'no';
   return sections
-    .map(
-      (s) => `
+    .map((s) => {
+      const lede = no ? s.ledeNo : s.lede;
+      const prompts = no
+        ? s.promptsNo.map((p) => `<li>${escapeHtml(p)}</li>`)
+        : s.prompts.map((p, i) => `<li>${escapeHtml(p)}<span class="no-help">${escapeHtml(s.promptsNo[i] || '')}</span></li>`);
+      return `
       <section class="charter-section">
         <div class="charter-head">
           <span class="charter-num">${s.num}</span>
           <div>
-            <h3>${escapeHtml(s.title)}</h3>
-            <p class="no-help">${escapeHtml(s.titleNo)}</p>
+            <h3>${escapeHtml(no ? s.titleNo : s.title)}</h3>
+            ${no ? '' : `<p class="no-help">${escapeHtml(s.titleNo)}</p>`}
           </div>
         </div>
-        ${s.lede ? `<p class="charter-lede">${escapeHtml(s.lede)}</p>` : ''}
-        ${
-          s.prompts.length
-            ? `<ul class="charter-prompts">${s.prompts
-                .map((p, i) => `<li>${escapeHtml(p)}<span class="no-help">${escapeHtml(s.promptsNo[i] || '')}</span></li>`)
-                .join('')}</ul>`
-            : ''
-        }
+        ${lede ? `<p class="charter-lede">${escapeHtml(lede)}</p>` : ''}
+        ${prompts.length ? `<ul class="charter-prompts">${prompts.join('')}</ul>` : ''}
         ${s.fields.map((field) => renderField(field, f.charter[field.key])).join('')}
         ${kind === 'village' && s.num === 'II' ? renderMapPicker(f.map) : ''}
-      </section>`
-    )
+      </section>`;
+    })
     .join('');
 }
 
 function renderForm() {
   const kind = tab;
   const f = form[kind];
+  const t = L();
   const isEditing = !!editing[kind];
+  const sendLabel = isEditing ? t.save : t.send;
 
   let top = '';
   if (kind === 'village') {
+    // A village in progress shows its group code; a student who has no village
+    // yet can join one with a code instead.
+    let group = '';
+    if (editing.village) {
+      if (editing.village.join_code) {
+        group = `<div class="group-box"><strong>${t.groupCode}: <span class="group-code">${escapeHtml(editing.village.join_code)}</span></strong><p class="muted">${t.groupCodeHelp}</p></div>`;
+      }
+    } else {
+      group = `<div class="group-box"><strong>${t.joinTitle}</strong><p class="muted">${t.joinHelp}</p><div class="join-row"><input id="join-code" type="text" maxlength="12" autocomplete="off" placeholder="${t.joinPlaceholder}" aria-label="${t.joinPlaceholder}"><button class="small-btn" id="join-btn" type="button">${t.joinButton}</button><span id="join-status" class="muted" role="status"></span></div></div>`;
+    }
     top = `
-      <p class="muted">One person per group writes the village. <span class="no-help">Én i gruppa skriver inn landsbyen.</span></p>
+      ${group}
+      <p class="muted">${t.oneWrites}</p>
       <div class="type-switch">
-        <label><input type="radio" name="charter-type" value="village" ${f.type === 'village' ? 'checked' : ''}> Village Charter</label>
-        <label><input type="radio" name="charter-type" value="shadow" ${f.type === 'shadow' ? 'checked' : ''}> Shadow Charter <span class="no-help">(den onde landsbyen)</span></label>
+        <label><input type="radio" name="charter-type" value="village" ${f.type === 'village' ? 'checked' : ''}> ${t.typeVillage}</label>
+        <label><input type="radio" name="charter-type" value="shadow" ${f.type === 'shadow' ? 'checked' : ''}> ${t.typeShadow}</label>
       </div>`;
   } else {
     const options = data.villages
-      .map((v) => `<option value="${escapeHtml(v.id)}" ${v.id === f.tribe_id ? 'selected' : ''}>${escapeHtml(v.name)}${v.status === 'pending' ? ' (waiting for teacher)' : ''}</option>`)
+      .map((v) => `<option value="${escapeHtml(v.id)}" ${v.id === f.tribe_id ? 'selected' : ''}>${escapeHtml(v.name)}${v.status === 'pending' ? t.waiting : ''}</option>`)
       .join('');
     top = `
-      <p class="muted">Everyone writes their own villager. <span class="no-help">Alle skriver sin egen innbygger.</span></p>
+      <p class="muted">${t.everyoneWrites}</p>
       <label class="charter-field">
-        <span class="field-label">Your village * <span class="no-help">Landsbyen din</span></span>
-        <select name="tribe_id"><option value="">Choose your village…</option>${options}</select>
+        <span class="field-label">${t.yourVillage}</span>
+        <select name="tribe_id"><option value="">${t.choose}</option>${options}</select>
       </label>
-      ${data.villages.length ? '' : '<p class="error">No villages yet — your group has to send in the village first.</p>'}`;
+      ${data.villages.length ? '' : `<p class="error">${t.noVillages}</p>`}`;
   }
 
   root.querySelector('#contribute-form').innerHTML = `
-    ${isEditing ? `<p class="editing-note">Editing: <strong>${escapeHtml(editing[kind].name)}</strong></p>` : ''}
-    ${
-      restored[kind]
-        ? `<p class="restored-note">Your unsent text was brought back from this computer. Remember to press <strong>${isEditing ? 'Save changes' : 'Send to teacher'}</strong> when you are done. <span class="no-help">Teksten du ikke har sendt ennå er hentet tilbake.</span></p>`
-        : ''
-    }
+    ${isEditing ? `<p class="editing-note">${t.editing} <strong>${escapeHtml(editing[kind].name)}</strong></p>` : ''}
+    ${restored[kind] ? `<p class="restored-note">${t.restored(sendLabel)}</p>` : ''}
     ${top}
     ${renderSections(kind)}
     <div class="submit-row">
-      <button class="choice-btn" id="send-btn" ${data.open ? '' : 'disabled'}>${isEditing ? 'Save changes' : 'Send to teacher'}</button>
+      <button class="choice-btn" id="send-btn" ${data.open ? '' : 'disabled'}>${sendLabel}</button>
       <span id="send-status" class="muted" role="status"></span>
       <span id="draft-status" class="draft-status" role="status"></span>
     </div>`;
@@ -272,24 +662,61 @@ function wireForm(kind) {
   }
 
   formEl.querySelector('#send-btn').addEventListener('click', () => send(kind));
+  formEl.querySelector('#join-btn')?.addEventListener('click', joinGroup);
+}
+
+// Joins a village a group member started. The village then opens for editing
+// here, exactly as if this student had started it.
+async function joinGroup() {
+  const statusEl = root.querySelector('#join-status');
+  const code = (root.querySelector('#join-code').value || '').trim();
+  if (!code) {
+    statusEl.textContent = L().joinNoCode;
+    return;
+  }
+  statusEl.textContent = L().joining;
+  try {
+    const { id, name } = await joinVillage(code);
+    data = await loadSubmissions();
+    const sub = data.mine.villages.find((v) => v.id === id);
+    if (sub) {
+      startEditing('village', sub);
+      tab = 'village';
+      lang = langOf(form.village);
+    }
+    renderPage();
+    root.querySelector('#send-status').textContent = L().joined(name);
+  } catch (err) {
+    statusEl.textContent = errorText(err);
+  }
+}
+
+// Turns an error from the server into a sentence in the language the student
+// is writing in.
+function errorText(err) {
+  if (err.message === 'translation_unavailable') return L().translationDown;
+  if (lang === 'no' && SERVER_MESSAGES_NO[err.message]) return SERVER_MESSAGES_NO[err.message];
+  if (lang === 'no' && err.message === TEXT.en.loggedOutMessage) return TEXT.no.loggedOutMessage;
+  return err.message;
 }
 
 async function send(kind) {
   const f = form[kind];
+  const t = L();
   const statusEl = root.querySelector('#send-status');
   const btn = root.querySelector('#send-btn');
 
   if (!(f.charter.name || '').trim()) {
-    statusEl.textContent = 'Please write a name first.';
+    statusEl.textContent = t.needName;
     return;
   }
   if (kind === 'villager' && !f.tribe_id) {
-    statusEl.textContent = 'Please choose your village.';
+    statusEl.textContent = t.needVillage;
     return;
   }
 
   btn.disabled = true;
-  statusEl.textContent = 'Sending…';
+  statusEl.textContent = t.sending;
   try {
     // Only send answers for the chosen sheet - switching Village/Shadow
     // back and forth would otherwise leave the other sheet's answers behind.
@@ -297,40 +724,58 @@ async function send(kind) {
     for (const field of allFields(f.type)) {
       if (f.charter[field.key]) charter[field.key] = f.charter[field.key];
     }
-    const payload = { type: f.type, id: editing[kind]?.id, charter };
+    const payload = { type: f.type, lang, id: editing[kind]?.id, charter };
     if (kind === 'village') payload.map = f.map;
     else payload.tribe_id = f.tribe_id;
     const { id } = await sendSubmission(payload);
 
-    clearDraft(kind);
+    // Only after the server has confirmed the submission is the unsent copy
+    // thrown away, in the browser and on the server.
+    await clearDraft(kind);
+    setSync('idle');
     data = await loadSubmissions();
     const list = kind === 'village' ? data.mine.villages : data.mine.villagers;
     const saved = list.find((s) => s.id === id);
     if (saved) startEditing(kind, saved);
     renderPage();
-    root.querySelector('#send-status').textContent = 'Sent! Your teacher will look at it.';
+    root.querySelector('#send-status').textContent = lang === 'no' ? TEXT.no.sent : TEXT.en.sent;
   } catch (err) {
     btn.disabled = false;
-    statusEl.textContent = err.message;
+    statusEl.textContent = errorText(err);
   }
 }
 
 function renderPage() {
+  const t = L();
   root.innerHTML = `
     <div class="contribute">
-      <h2>Contribute</h2>
-      <p>Write your answers in <strong>English</strong>. The grey text is Norwegian help. Your writing is saved on this computer while you type.</p>
-      ${data.open ? '' : '<p class="error">Sending is closed right now. <span class="no-help">Innsending er stengt akkurat nå.</span></p>'}
+      <div class="contribute-top">
+        <h2>${t.title}</h2>
+        ${
+          data.translation
+            ? `<div class="contribute-tabs lang-switch" role="group" aria-label="Språk / Language">
+          <button class="lore-tab ${lang === 'no' ? 'active' : ''}" data-lang="no" aria-pressed="${lang === 'no'}">Norsk</button>
+          <button class="lore-tab ${lang === 'en' ? 'active' : ''}" data-lang="en" aria-pressed="${lang === 'en'}">English</button>
+        </div>`
+            : ''
+        }
+      </div>
+      <p>${t.intro}</p>
+      ${data.open ? '' : `<p class="error">${t.closed}</p>`}
       <section class="my-submissions">
-        <h3>My submissions</h3>
+        <h3>${t.mySubmissions}</h3>
         ${renderSubmissionList()}
       </section>
       <div class="contribute-tabs" role="tablist">
-        <button class="lore-tab ${tab === 'village' ? 'active' : ''}" data-tab="village">Our village</button>
-        <button class="lore-tab ${tab === 'villager' ? 'active' : ''}" data-tab="villager">My villager</button>
+        <button class="lore-tab ${tab === 'village' ? 'active' : ''}" data-tab="village">${t.tabVillage}</button>
+        <button class="lore-tab ${tab === 'villager' ? 'active' : ''}" data-tab="villager">${t.tabVillager}</button>
       </div>
       <div id="contribute-form"></div>
     </div>`;
+
+  root.querySelectorAll('[data-lang]').forEach((btn) => {
+    btn.addEventListener('click', () => setLang(btn.dataset.lang));
+  });
 
   root.querySelectorAll('[data-tab]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -347,6 +792,8 @@ function renderPage() {
       if (!sub) return;
       startEditing(kind, sub);
       tab = kind;
+      // A submission written in Norwegian is edited in Norwegian.
+      lang = langOf(form[kind]);
       renderPage();
     });
   });
@@ -356,14 +803,35 @@ function renderPage() {
 
 export async function renderContribute(container) {
   root = container;
-  root.innerHTML = '<p>Loading…</p>';
+  lang = savedLang();
+  root.innerHTML = `<p>${L().loading}</p>`;
   try {
     data = await loadSubmissions();
   } catch (err) {
     root.innerHTML = `<p class="error">${escapeHtml(err.message)}</p>`;
     return;
   }
-  draftState = { ok: storageWorks(), savedAt: null };
+
+  if (!data.translation) lang = 'en';
+
+  // Anything still waiting from an earlier visit to this page (for example a
+  // push that did not finish) is saved first, so the server list below is
+  // not older than what the student last typed.
+  flushAll();
+
+  localOk = storageWorks();
+  serverFetched = false;
+  serverDrafts = new Map();
+  try {
+    const rows = await loadDrafts();
+    serverDrafts = new Map(rows.map((r) => [`${r.kind}:${r.ref_id}`, { content: r.content, updatedAt: r.updated_at }]));
+    serverFetched = true;
+  } catch {
+    // The page still works from the copies in this browser.
+  }
+
+  installListeners();
+  syncState = { name: 'idle', at: null, message: '' };
   pickInitialForms();
   renderPage();
 }

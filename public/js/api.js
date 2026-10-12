@@ -78,8 +78,77 @@ export async function sendSubmission(payload) {
   });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401) {
-    throw new Error('You are logged out. Log in again with the same name - your text is saved on this computer.');
+    throw new Error('You are logged out. Log in again - your text is saved.');
   }
   if (!res.ok) throw new Error(data.error || 'Could not send - please try again.');
   return data;
+}
+
+// Join a village a group member started, with its group code. Resolves to
+// { id, name } of the village.
+export async function joinVillage(code) {
+  const res = await fetch('/api/submit', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'join', code }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) throw new Error('You are logged out. Log in again - your text is saved.');
+  if (!res.ok) throw new Error(data.error || 'Could not join - please try again.');
+  return data;
+}
+
+// Unsent Contribute text kept on the server, so a student can continue on
+// another computer. Failures carry a `status` (0 = no network) so the page can
+// tell "logged out" from "offline" from "rejected".
+export async function loadDrafts() {
+  const res = await fetch('/api/draft', { credentials: 'same-origin' });
+  if (!res.ok) {
+    const err = new Error('Could not load saved drafts.');
+    err.status = res.status;
+    throw err;
+  }
+  return (await res.json()).drafts || [];
+}
+
+// keepalive lets the request finish while the page is closing; browsers only
+// allow it for bodies under 64 KB, so larger drafts skip it and stay in the
+// browser copy until the next visit.
+export async function putDraft(kind, refId, content, { keepalive = false } = {}) {
+  const body = JSON.stringify({ kind, ref_id: refId, content });
+  let res;
+  try {
+    res = await fetch('/api/draft', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      keepalive: keepalive && body.length < 60000,
+    });
+  } catch {
+    const err = new Error('No connection');
+    err.status = 0;
+    throw err;
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const err = new Error(data.error || 'Could not save online.');
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+// Best effort: a draft that is not deleted only comes back as old text.
+export async function removeDraft(kind, refId) {
+  try {
+    const res = await fetch(`/api/draft?kind=${encodeURIComponent(kind)}&ref_id=${encodeURIComponent(refId)}`, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }

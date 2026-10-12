@@ -1,4 +1,4 @@
-import { getSession, nameLogin, logoutUrl, loadProgress, saveProgress } from './api.js';
+import { getSession, nameLogin, loginUrl, logoutUrl, loadProgress, saveProgress } from './api.js';
 import { loadAllContent } from './content.js';
 import { renderCharacterSelect, renderScene, findEntryScene, applyConsequences } from './game.js';
 import { renderLexicon } from './lexicon.js';
@@ -42,24 +42,59 @@ function renderNav(authenticated, displayTag) {
   renderAudioControl(document.getElementById('nav-audio'));
 }
 
-function showLoginScreen() {
+const LOGIN_ERRORS = {
+  cancelled: 'The Feide login was cancelled. Press "Log in with Feide" to try again.',
+  state: 'The login took too long. Press "Log in with Feide" and try again.',
+  failed: 'The Feide login did not work. Try again, and tell your teacher if it keeps failing.',
+};
+
+// The callback sends the browser back with ?login_error=<code>; show it once
+// and clean the address bar so a reload does not repeat it.
+function takeLoginError() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('login_error');
+  if (!code) return null;
+  const why = params.get('why') || '';
+  window.history.replaceState(null, '', window.location.pathname);
+  const message = LOGIN_ERRORS[code] || LOGIN_ERRORS.failed;
+  return /^[a-z0-9_]{1,60}$/.test(why) ? `${message} (code: ${why})` : message;
+}
+
+function showLoginScreen({ feideEnabled = false, nameLoginEnabled = true } = {}) {
+  const loginError = takeLoginError();
   app.innerHTML = `
     <div class="login-box">
       <img class="cover-art" src="/assets/images/lore/cover-art.jpg" alt="" onerror="this.style.display='none'">
       <h1>The Unmaking</h1>
-      <p>Type your name to play and save your progress.</p>
-      <form id="login-form">
+      ${
+        feideEnabled
+          ? `<p>Log in with your school account to save your work.</p>
+             <a class="choice-btn feide-btn" id="feide-login" href="${loginUrl()}">Log in with Feide</a>
+             ${nameLoginEnabled ? '<p class="muted">No Feide yet? Type your name instead.</p>' : ''}`
+          : nameLoginEnabled
+            ? '<p>Type your name to play and save your progress.</p>'
+            : '<p>Logging in is not open right now. Ask your teacher.</p>'
+      }
+      ${
+        nameLoginEnabled
+          ? `<form id="login-form">
         <label for="login-name" class="muted">Your name</label>
         <input id="login-name" name="name" placeholder="e.g. Kari S" autocomplete="off" required />
         <button type="submit" class="choice-btn">Log in</button>
-      </form>
+      </form>`
+          : ''
+      }
       <p id="login-error" class="error" hidden></p>
     </div>
   `;
 
   const form = document.getElementById('login-form');
   const errorEl = document.getElementById('login-error');
-  form.addEventListener('submit', async (e) => {
+  if (loginError) {
+    errorEl.textContent = loginError;
+    errorEl.hidden = false;
+  }
+  form?.addEventListener('submit', async (e) => {
     e.preventDefault();
     errorEl.hidden = true;
     try {
@@ -172,7 +207,7 @@ async function init() {
   renderNav(session.authenticated, session.displayTag);
 
   if (!session.authenticated) {
-    showLoginScreen();
+    showLoginScreen(session);
     return;
   }
 
@@ -180,7 +215,7 @@ async function init() {
 
   const { progress, unauthenticated } = await loadProgress();
   if (unauthenticated) {
-    showLoginScreen();
+    showLoginScreen(session);
     return;
   }
 

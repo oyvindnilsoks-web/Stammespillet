@@ -21,42 +21,84 @@ supabase/                → (referanse) skjema finnes i Supabase-prosjektet "st
   2. Bruker den hemmelige `SUPABASE_SERVICE_ROLE_KEY` server-side til å
      lese/skrive kun den ene raden som hører til elevens Feide-ID
 
-## Miljøvariabler (settes i Netlify: Site settings → Environment variables)
+## Miljøvariabler (settes i Netlify: Project configuration → Environment variables)
+
+Netlify har egne verdier per «deploy context». Produksjonsnettstedet bruker
+**Production**. Testadressen `https://test--stammespillet.netlify.app`
+(`netlify deploy --alias test`) bruker **Branch deploys**, ikke Deploy Previews.
+Hemmelige verdier (`SESSION_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`,
+`FEIDE_CLIENT_SECRET`, `DEEPL_API_KEY`, `ADMIN_PASSWORD`) legges inn i
+Netlify-grensesnittet med «Contains secret values» og limes aldri inn i chat
+eller filer i repoet.
 
 | Variabel | Påkrevd | Beskrivelse |
 |---|---|---|
 | `SUPABASE_URL` | Ja | `https://rdqodrcrfakgvgwkmejj.supabase.co` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Ja | Hentes fra Supabase-dashbordet → Project settings → API → `service_role` (hemmelig, aldri i frontend-kode) |
-| `SESSION_SECRET` | Ja | Tilfeldig streng (min. 32 tegn) brukt til å signere innloggingscookien. Generer f.eks. med `openssl rand -base64 32` |
-| `ENABLE_DEV_LOGIN` | Nei (kun testing) | Sett til `true` for å teste hele løpet uten ekte Feide. **Skal IKKE stå `true` i produksjon** når ekte elever bruker spillet |
-| `FEIDE_ISSUER` | Når Feide er klar | OIDC issuer-URL fra kommunens Feide-tjeneste, f.eks. `https://feide.steinkjer.kommune.no` |
-| `FEIDE_CLIENT_ID` | Når Feide er klar | Client-ID fra kommunen |
-| `FEIDE_CLIENT_SECRET` | Når Feide er klar | Client-secret fra kommunen (hemmelig) |
-| `FEIDE_REDIRECT_URI` | Valgfri | Overstyrer redirect-URI. Standard er `https://<produksjonsdomene>/api/auth/callback`, som må registreres hos kommunens Feide-tjeneste |
+| `SUPABASE_SERVICE_ROLE_KEY` | Ja | Supabase → Project settings → API → `service_role` (hemmelig, aldri i frontend-kode) |
+| `SESSION_SECRET` | Ja | Tilfeldig streng (min. 32 tegn) som signerer innloggingscookien. F.eks. `openssl rand -base64 32` |
+| `ADMIN_PASSWORD` | Ja | Passord (min. 12 tegn) til `/admin.html`. Læreren kan i tillegg logge inn med Feide hvis brukeren er markert `is_admin` i tabellen `students` |
+| `FEIDE_ISSUER` | For Feide | `https://auth.dataporten.no` |
+| `FEIDE_CLIENT_ID` | For Feide | Klient-ID fra Feide Kundeportal (egen per konfigurasjon: Test og Produksjon) |
+| `FEIDE_CLIENT_SECRET` | For Feide | Klienthemmelighet (en UUID) fra samme konfigurasjon |
+| `FEIDE_REDIRECT_URI` | For Feide | Må være lik «Redirect URI til etter innlogging» i portalen, f.eks. `https://stammespillet.netlify.app/api/auth/callback`. Opprinnelsen (domenet) brukes også som adresse etter utlogging |
+| `DEEPL_API_KEY` | For norsk skriving | DeepL-nøkkel. Nøkler som slutter på `:fx` bruker gratis-API. Uten nøkkel skjules språkvalget «Norsk» på Contribute-siden |
+| `ALLOW_NAME_LOGIN` | Nei | Sett til `false` når alle elever logger inn med Feide. Da vises ikke navneskjemaet, og `/api/auth/name-login` svarer 403. Ellers på |
+| `ENABLE_DEV_LOGIN` | Nei (kun testing) | `true` åpner `/dev-login.html`. **Skal stå `false` i produksjon** (er satt til `false` siden 2026-10-12) |
 
-`SUPABASE_URL` og en offentlig nøkkel er allerede lagt inn direkte i
-`public/js/config.js` – det er trygt fordi RLS beskytter innholdet (kun
-lesetilgang, og ingen tilgang til `progress`).
+Nettleseren leser ikke databasen selv. All lesing og skriving går gjennom
+Netlify-funksjonene (`/api/content`, `/api/submit`, `/api/draft`,
+`/api/progress`, `/api/admin`) med tjenestenøkkelen, og tabellene er stengt for
+den offentlige nøkkelen (`anon`). Eneste unntak er filopplasting til lagring,
+som går via en engangs-URL fra serveren.
 
-## Slik kobler du på ekte Feide (når kommunen har satt opp tjenesten)
+## Feide
 
-1. Be kommunen om: `issuer`-URL, `client_id`, `client_secret`, og bekreft
-   redirect-URI-en de skal registrere: `https://<domene>/api/auth/callback`
-2. Legg `FEIDE_ISSUER`, `FEIDE_CLIENT_ID`, `FEIDE_CLIENT_SECRET` inn som
-   miljøvariabler i Netlify
-3. Sett `ENABLE_DEV_LOGIN` til `false` (eller fjern variabelen)
-4. Deploy på nytt (`netlify deploy --prod` eller push til hoved-branch)
-5. Test hele løpet: "Logg inn med Feide" → velg karakter → spill → lukk
-   fanen → åpne siden igjen → skal fortsette der du slapp
+Tjenesten «Stammespillet» er registrert i Feide Kundeportal (kunde.feide.no) som
+OpenID Connect, konfidensiell klient, med scope `openid profile` og
+attributtet `userinfo-name`. Vi bruker authorization code + PKCE (S256) og
+henter navnet fra userinfo-endepunktet. Det finnes en konfigurasjon per miljø:
 
-Motoren bruker standard OIDC discovery (`/.well-known/openid-configuration`)
-og PKCE (authorization code + code_verifier), så den skal fungere mot enhver
-spec-kompatibel Feide/Dataporten-tjeneste uten kodeendringer – kun
-miljøvariablene over trengs.
+- **Test** (`https://test--stammespillet.netlify.app/api/auth/callback`, med
+  testbrukere). Settes for Branch deploys og Deploy Previews.
+- **Produksjon** (`https://stammespillet.netlify.app/api/auth/callback`).
+  Settes for Production.
 
-Kun `sub`-claimen fra Feide sin id_token brukes (prefikset `feide:` og lagt i
-en signert, httpOnly sesjonscookie). Ingen navn, fødselsdato, e-post eller
-annen persondata hentes, vises eller lagres.
+Slik slår du på Feide i produksjon:
+
+1. Lag konfigurasjonen «Produksjon» i portalen (egen klient-ID og hemmelighet,
+   redirect-URI og utloggings-URI `https://stammespillet.netlify.app/`,
+   begrenset til Steinkjer kommune).
+2. Sett `FEIDE_ISSUER`, `FEIDE_CLIENT_ID`, `FEIDE_CLIENT_SECRET` og
+   `FEIDE_REDIRECT_URI` for **Production**.
+3. Deploy på nytt (`npx netlify deploy --prod`) så funksjonene får verdiene.
+   Knappen «Log in with Feide» dukker da opp av seg selv.
+4. Prøv innlogging, utlogging og `/admin.html` med en ekte bruker.
+5. Når alle elever kommer inn med Feide: sett `ALLOW_NAME_LOGIN=false` og
+   deploy igjen.
+
+Hva som lagres om en elev: Feide-ID (`sub`, lagres som `feide:<sub>`) og navn,
+i tabellen `students`. Navnet vises bare for eleven selv («Logged in (…)») og for
+læreren i admin. Det blir aldri sendt til andre elever, og nettleseren leser
+aldri tabellen. Elevens tekster, utkast og spillfremdrift henger på samme ID.
+
+Feil under innlogging vises som en kort kode, for eksempel
+`(code: token_401_invalid_client)`. Koden inneholder aldri hemmeligheter eller
+persondata. Detaljene står i funksjonsloggen i Netlify.
+
+## Skjema og database
+
+Alle endringer i databasen ligger som SQL i `supabase/migrations/` (de er
+allerede kjørt mot prosjektet). Tabeller som bare funksjonene bruker
+(`students`, `drafts`, `village_members`, `progress`, `settings`) har RLS på,
+ingen policyer og ingen rettigheter for `anon`/`authenticated`.
+
+- `students`: én rad per Feide-bruker (`user_id`, `display_name`, `is_admin`).
+  Læreren gjøres til admin med `update public.students set is_admin = true where user_id = 'feide:…'`.
+- `drafts`: usendt tekst fra Contribute-siden, per elev og innsending.
+- `tribes`/`characters`: `charter` er svarene på engelsk, `charter_original` er
+  elevens egen norske tekst hvis `source_lang = 'no'`. `submitted_by` er eieren.
+- `village_members` og `tribes.join_code`: gruppekoden som lar flere elever
+  skrive i samme landsby til læreren har godkjent den.
 
 ## Testing uten Feide (nå)
 
