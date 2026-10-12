@@ -1,5 +1,5 @@
 import { buildMask, connectVillages, terrainAt } from './mask.js';
-import { PLAYER_FRAME, shieldOf, isEnemy, villagersOf } from './data.js';
+import { shieldOf, isEnemy, villagersOf } from './data.js';
 import { mediaUrl } from '../content.js';
 
 // The world map: the painted map is the ground, a small figure walks on it,
@@ -105,7 +105,8 @@ export function createWorldScene(Phaser, ctx) {
         }
       }
       this.shadow = this.add.ellipse(sx, sy, 28, 10, 0x000000, 0.35).setDepth(5);
-      this.player = this.add.sprite(sx, sy, 'heroes', PLAYER_FRAME).setOrigin(0.5, 1).setScale(3).setDepth(6);
+      this.player = this.add.sprite(sx, sy, ctx.look.texture, ctx.look.frame).setOrigin(0.5, 1).setScale(3).setDepth(6);
+      this.lookKey = ctx.look.key;
       // Rings on the water around the swimming figure.
       this.rings = [0, 1].map(() => this.add.ellipse(sx, sy, 40, 40, 0xdff2f5, 0).setStrokeStyle(3, 0xe8f6f8).setDepth(5.5).setVisible(false));
       this.wasSwimming = false;
@@ -183,6 +184,10 @@ export function createWorldScene(Phaser, ctx) {
     }
 
     update(time, delta) {
+      if (ctx.look.key !== this.lookKey) {
+        this.player.setTexture(ctx.look.texture, ctx.look.frame);
+        this.lookKey = ctx.look.key;
+      }
       const dt = Math.min(delta, 50) / 1000;
       const p = this.player;
       const k = this.keys;

@@ -18,13 +18,15 @@ export function createUi(wrap) {
   wrap.insertAdjacentHTML(
     'beforeend',
     `<div class="play-hud" id="play-hud" aria-live="polite"></div>
-     <div class="play-prompt" id="play-prompt" hidden></div>
+     <button type="button" class="play-prompt" id="play-prompt" hidden></button>
      <div class="play-overlay" id="play-overlay" hidden role="dialog" aria-modal="true"></div>`
   );
   const hud = wrap.querySelector('#play-hud');
   const prompt = wrap.querySelector('#play-prompt');
   const overlay = wrap.querySelector('#play-overlay');
   let onClose = null;
+  let onPrompt = null;
+  prompt.addEventListener('click', () => onPrompt && onPrompt());
 
   function close() {
     if (overlay.hidden) return;
@@ -57,12 +59,14 @@ export function createUi(wrap) {
     setHud(html) {
       hud.innerHTML = html;
     },
-    setPrompt(message) {
+    // The button at the bottom: what can be done here, and what clicking it does.
+    setPrompt(message, action) {
+      onPrompt = action || null;
       if (!message) {
         prompt.hidden = true;
         return;
       }
-      prompt.textContent = message;
+      if (prompt.textContent !== message) prompt.textContent = message;
       prompt.hidden = false;
     },
 

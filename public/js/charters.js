@@ -149,6 +149,13 @@ const SHADOW = [
   },
 ];
 
+// Six conversations a villager can have: a question and an answer each.
+// (Letters, not numbers, because answer keys may only contain letters and _.)
+const TALKS = ['a', 'b', 'c', 'd', 'e', 'f'].flatMap((letter, i) => [
+  { key: `talk_${letter}_q`, label: `Question ${i + 1}: what the player asks`, labelNo: `Spørsmål ${i + 1}: det spilleren spør om`, type: 'text' },
+  { key: `talk_${letter}_a`, label: `Answer ${i + 1}: what your villager says`, labelNo: `Svar ${i + 1}: det innbyggeren sier`, type: 'area' },
+]);
+
 const VILLAGER = [
   {
     num: 'I',
@@ -185,6 +192,22 @@ const VILLAGER = [
     prompts: ['Three words that describe them.', 'What do they like? What are they afraid of?'],
     promptsNo: ['Tre ord som beskriver dem.', 'Hva liker de? Hva er de redde for?'],
     fields: [{ key: 'personality', type: 'area' }],
+  },
+  {
+    num: 'IV',
+    title: 'What They Say',
+    titleNo: 'Hva de sier',
+    lede: 'Players talk to your villager by choosing a question. Write up to six questions and the answers your villager gives. Only text.',
+    ledeNo: 'Spillere snakker med innbyggeren din ved å velge et spørsmål. Skriv opptil seks spørsmål og svarene innbyggeren gir. Bare tekst.',
+    prompts: [
+      'What would a visitor like to ask? Rumours, the weather, the village, the villager’s secret…',
+      'Answer the way your villager would: with their own words and mood.',
+    ],
+    promptsNo: [
+      'Hva vil en besøkende spørre om? Rykter, været, landsbyen, innbyggerens hemmelighet …',
+      'Svar slik innbyggeren din ville gjort: med egne ord og humør.',
+    ],
+    fields: TALKS,
   },
 ];
 

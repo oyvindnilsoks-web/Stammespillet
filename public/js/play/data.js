@@ -83,8 +83,26 @@ export function isEnemy(content, tribe) {
   return false;
 }
 
+// The villagers of a village that the player can talk to. The student's own
+// villagers are not among them: the student is one of them, playing.
 export function villagersOf(content, tribeId) {
-  return [...content.characters.values()].filter((c) => c.tribe_id === tribeId).sort((a, b) => a.name.localeCompare(b.name));
+  const own = new Set(content.mineCharacters || []);
+  return [...content.characters.values()].filter((c) => c.tribe_id === tribeId && !own.has(c.id)).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// The student's own approved villagers, the ones they can play as.
+export function ownVillagers(content) {
+  const own = new Set(content.mineCharacters || []);
+  return [...content.characters.values()].filter((c) => own.has(c.id)).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+}
+
+// What the player looks like: the figure of the student's villager (the one
+// chosen, or the first), or the plain hero when they have none yet.
+export function playerLook(content, chosenId) {
+  const own = ownVillagers(content);
+  if (!own.length) return { key: 'hero', texture: 'heroes', frame: PLAYER_FRAME, villager: null };
+  const villager = own.find((v) => v.id === chosenId) || own[0];
+  return { key: villager.id, texture: 'figures', frame: figureFor(villager), villager };
 }
 
 export function mediaOfTribe(content, tribeId) {
@@ -108,6 +126,13 @@ export function dialogTopics(villager) {
   const look = asText(c.appearance) || (c.personality ? '' : asText(villager.description));
   if (look) topics.push({ id: 'look', question: 'What do you look like?', answer: look });
   if (asText(c.personality)) topics.push({ id: 'personality', question: 'What are you like?', answer: asText(c.personality) });
+
+  // Conversations the student wrote themselves: at most six.
+  for (const letter of ['a', 'b', 'c', 'd', 'e', 'f']) {
+    const question = asText(c[`talk_${letter}_q`]);
+    const answer = asText(c[`talk_${letter}_a`]);
+    if (question && answer) topics.push({ id: `talk_${letter}`, question, answer });
+  }
 
   // Older villagers, written before the forms were made shorter.
   if (asText(villager.goal)) topics.push({ id: 'goal', question: 'What do you want?', answer: asText(villager.goal) });

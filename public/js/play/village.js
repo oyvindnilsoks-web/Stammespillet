@@ -1,4 +1,4 @@
-import { PLAYER_FRAME, figureFor, portraitOf, hashString, mulberry32, villagersOf, mediaOfTribe } from './data.js';
+import { figureFor, portraitOf, hashString, mulberry32, villagersOf, mediaOfTribe } from './data.js';
 import { mediaUrl } from '../content.js';
 
 // Inside a village: a little drawn village with houses, trees and a square.
@@ -98,7 +98,7 @@ export function createVillageScene(Phaser, ctx) {
         kind: 'board',
         x: signX,
         y: signY + 6,
-        hint: 'Press E to read the sign',
+        hint: 'Read the sign (E or click here)',
         sprite: sign,
         open: () => ctx.ui.openBoard(tribe, mediaOfTribe(ctx.content, tribe.id), () => this.unlock()),
       });
@@ -139,7 +139,7 @@ export function createVillageScene(Phaser, ctx) {
           kind: 'villager',
           x,
           y: y - 6,
-          hint: `Press E to talk to ${villager.name}`,
+          hint: `Talk to ${villager.name} (E or click here)`,
           sprite: npc,
           met: ctx.progress.talked.has(villager.id),
           nameText: name,
@@ -169,7 +169,8 @@ export function createVillageScene(Phaser, ctx) {
       const px = 10.5 * T + 0;
       const py = (ROWS - 1.2) * T;
       this.shadow = this.add.ellipse(px, py, 28, 10, 0x000000, 0.35).setDepth(5);
-      this.player = this.add.sprite(px, py, 'heroes', PLAYER_FRAME).setOrigin(0.5, 1).setScale(SCALE).setDepth(6);
+      this.player = this.add.sprite(px, py, ctx.look.texture, ctx.look.frame).setOrigin(0.5, 1).setScale(SCALE).setDepth(6);
+      this.lookKey = ctx.look.key;
       this.arrowHint = this.add.text(px, py - T - 8, '▼', { fontFamily: 'Georgia, serif', fontSize: '16px', color: '#c98f3e', stroke: '#1b1712', strokeThickness: 4 }).setOrigin(0.5, 1).setDepth(9);
 
       this.cameras.main.setBounds(0, 0, W, H);
@@ -182,8 +183,20 @@ export function createVillageScene(Phaser, ctx) {
       this.target = null;
       this.leaving = false;
 
+      // E, space or enter talks to whoever is closest. It is caught by the page,
+      // not asked for in every picture, so a press is never missed.
+      this.wantTalk = false;
+      this.onTalkKey = (e) => {
+        if (e.repeat || !['e', 'E', ' ', 'Enter'].includes(e.key)) return;
+        if (/^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(document.activeElement?.tagName || '') && e.key !== 'e' && e.key !== 'E') return;
+        this.wantTalk = true;
+      };
+      document.addEventListener('keydown', this.onTalkKey);
+      this.events.once('shutdown', () => document.removeEventListener('keydown', this.onTalkKey));
+
       this.input.on('pointerdown', (pointer) => {
         if (this.locked || ctx.ui.isOpen()) return;
+        this.pendingTalk = null;
         this.target = { x: pointer.worldX, y: pointer.worldY };
       });
       // Clicking a villager or the sign: go there, and talk when close.
@@ -193,7 +206,11 @@ export function createVillageScene(Phaser, ctx) {
           event?.stopPropagation?.();
           if (this.locked || ctx.ui.isOpen()) return;
           if (Phaser.Math.Distance.Between(this.player.x, this.player.y, item.x, item.y) <= TALK_DISTANCE + 20) this.talk(item);
-          else this.target = { x: item.x, y: item.y + 40 };
+          else {
+            // Walk over, and start talking on arrival.
+            this.target = { x: item.x, y: item.y + 40 };
+            this.pendingTalk = item;
+          }
         });
       }
       ctx.refreshHud();
@@ -230,6 +247,10 @@ export function createVillageScene(Phaser, ctx) {
 
     update(time, delta) {
       if (this.leaving) return;
+      if (ctx.look.key !== this.lookKey) {
+        this.player.setTexture(ctx.look.texture, ctx.look.frame);
+        this.lookKey = ctx.look.key;
+      }
       const dt = Math.min(delta, 50) / 1000;
       const p = this.player;
       const k = this.keys;
@@ -283,9 +304,19 @@ export function createVillageScene(Phaser, ctx) {
 
       // Something to talk to close by?
       const item = this.locked ? null : this.nearest();
-      ctx.ui.setPrompt(item ? item.hint : null);
-      if (item && (Phaser.Input.Keyboard.JustDown(k.E) || Phaser.Input.Keyboard.JustDown(k.SPACE) || Phaser.Input.Keyboard.JustDown(k.ENTER))) {
+      ctx.ui.setPrompt(item ? item.hint : null, item ? () => this.talk(item) : null);
+      const wanted = this.wantTalk;
+      this.wantTalk = false;
+      if (item && wanted) {
         this.talk(item);
+      } else if (!this.locked && this.pendingTalk) {
+        const target = this.pendingTalk;
+        if (Phaser.Math.Distance.Between(p.x, p.y, target.x, target.y) <= TALK_DISTANCE) {
+          this.pendingTalk = null;
+          this.talk(target);
+        } else if (!this.target) {
+          this.pendingTalk = null; // could not get there
+        }
       }
     }
   };

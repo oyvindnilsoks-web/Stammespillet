@@ -1,6 +1,7 @@
+import { escapeHtml } from '../translate.js';
 import { createUi } from './ui.js';
 import { ensureFigures, figureSheetUrl } from './figures.js';
-import { mappedVillages, villagersOf } from './data.js';
+import { mappedVillages, villagersOf, ownVillagers, playerLook } from './data.js';
 import { createWorldScene } from './world.js';
 import { createVillageScene } from './village.js';
 
@@ -56,6 +57,13 @@ function createProgress(state, save) {
     position() {
       return Number.isFinite(play.x) && Number.isFinite(play.y) ? { x: play.x, y: play.y } : null;
     },
+    playingAs() {
+      return play.as || null;
+    },
+    playAs(id) {
+      play.as = id;
+      progress.save();
+    },
     save() {
       clearTimeout(timer);
       timer = setTimeout(() => save().catch(() => {}), 800);
@@ -104,13 +112,30 @@ export function startPlay(container, content, { state, save }) {
       progress = createProgress(state, save);
 
       const ctx = { content, villages, ui, progress, mask: null, start: null };
+      ctx.look = playerLook(content, progress.playingAs());
       ctx.refreshHud = () => {
+        ctx.look = playerLook(content, progress.playingAs());
+        const own = ownVillagers(content);
+        const picker =
+          own.length > 1
+            ? `<label class="play-as">Playing as <select id="play-as">${own
+                .map((v) => `<option value="${escapeHtml(v.id)}" ${v.id === ctx.look.key ? 'selected' : ''}>${escapeHtml(v.name)}</option>`)
+                .join('')}</select></label>`
+            : own.length
+              ? `<span>Playing as <strong>${escapeHtml(own[0].name)}</strong></span>`
+              : '<span>Make a villager to play as them</span>';
         const villageIds = new Set(villages.map((v) => v.tribe.id));
         const visited = [...progress.visited].filter((id) => villageIds.has(id)).length;
         const people = villages.flatMap((v) => villagersOf(content, v.tribe.id));
         const met = people.filter((c) => progress.talked.has(c.id)).length;
-        ui.setHud(`<span>Villages visited <strong>${visited}/${villages.length}</strong></span><span>Villagers met <strong>${met}/${people.length}</strong></span>`);
+        ui.setHud(`${picker}<span>Villages visited <strong>${visited}/${villages.length}</strong></span><span>Villagers met <strong>${met}/${people.length}</strong></span>`);
       };
+
+      wrap.querySelector('#play-hud').addEventListener('change', (e) => {
+        if (e.target.id !== 'play-as') return;
+        progress.playAs(e.target.value);
+        ctx.refreshHud();
+      });
 
       const Boot = class extends Phaser.Scene {
         constructor() {

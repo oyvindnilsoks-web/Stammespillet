@@ -41,6 +41,13 @@ async function ownVillageIds(supabase, user) {
   return [...ids];
 }
 
+// The villagers the student wrote: in the game they are the figure the student
+// plays, so they do not stand in the villages as characters to talk to.
+async function ownVillagerIds(supabase, user) {
+  const { data } = await supabase.from('characters').select('id').eq('submitted_by', user).eq('status', 'approved');
+  return (data || []).map((c) => c.id);
+}
+
 async function requireUser(event) {
   const token = parseCookies(event)[SESSION_COOKIE];
   if (!token) return null;
@@ -82,8 +89,12 @@ exports.handler = withSessionRenewal(async (event) => {
     const approvedIds = new Set(tribeIds);
     const mine = (await ownVillageIds(supabase, user)).filter((id) => approvedIds.has(id));
 
+    const approvedCharacters = new Set(characters.data.map((c) => c.id));
+    const mineCharacters = (await ownVillagerIds(supabase, user)).filter((id) => approvedCharacters.has(id));
+
     return json(200, {
       mine,
+      mine_characters: mineCharacters,
       tribes: tribes.data.map(publicRow),
       characters: characters.data.map(publicRow),
       scenes: scenes.data,
