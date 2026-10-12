@@ -9,6 +9,9 @@
 [functions.keepalive]
   schedule = "@daily"
 
+[functions.poison-tick]
+  schedule = "*/5 * * * *"
+
 [[redirects]]
   from = "/api/auth/login"
   to = "/.netlify/functions/auth-login"
@@ -57,6 +60,16 @@
 [[redirects]]
   from = "/api/council"
   to = "/.netlify/functions/council"
+  status = 200
+
+[[redirects]]
+  from = "/api/world"
+  to = "/.netlify/functions/world"
+  status = 200
+
+[[redirects]]
+  from = "/api/presence"
+  to = "/.netlify/functions/presence"
   status = 200
 
 [[redirects]]

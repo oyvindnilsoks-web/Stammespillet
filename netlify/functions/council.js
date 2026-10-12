@@ -2,6 +2,7 @@ const { parseCookies } = require('./_lib/cookies');
 const { verifySessionToken, SESSION_COOKIE, withSessionRenewal } = require('./_lib/session');
 const { getSupabaseAdmin } = require('./_lib/supabaseAdmin');
 const { translateToEnglish } = require('./_lib/translate');
+const presence = require('./_lib/presence');
 
 // The council of a village. Whoever lives there can see it: the student who
 // started the village, the students who joined it with the group code, and the
@@ -146,6 +147,12 @@ const handler = withSessionRenewal(async (event) => {
     }
     const tribeId = String(body.tribe_id || '');
     if (!mine.includes(tribeId)) return json(404, { error: 'You can only write the council of a village you live in.' });
+
+    // The council meets in the village: it can only be written while all the
+    // villagers are there and one of them has started the council.
+    if (!(await presence.mayChangeCouncil(supabase, tribeId, user))) {
+      return json(403, { error: 'The council can only be changed when all the villagers have gathered in the village and started the council.' });
+    }
 
     const [{ data: existing, error: existingErr }, people] = await Promise.all([
       supabase.from('councils').select(COLUMNS).eq('tribe_id', tribeId),

@@ -84,6 +84,52 @@ export async function sendSubmission(payload) {
   return data;
 }
 
+// Where the student stands (a heartbeat while inside a village; null when they
+// leave), the gathering of the villagers of a village, and starting the council.
+export async function presenceBeat(tribeId) {
+  await fetch('/api/presence', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tribe_id: tribeId }),
+    keepalive: true,
+  });
+}
+
+export async function presenceState(tribeId) {
+  const res = await fetch(`/api/presence?tribe_id=${encodeURIComponent(tribeId)}`, { credentials: 'same-origin' });
+  if (!res.ok) throw new Error('Could not check who is here.');
+  return res.json();
+}
+
+export async function startCouncilSession(tribeId) {
+  const res = await fetch('/api/presence', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'start-council', tribe_id: tribeId }),
+  });
+  return res.json().catch(() => ({ ok: false }));
+}
+
+// Where the poison is, and cleaning around a village after a solved problem.
+export async function loadWorld() {
+  const res = await fetch('/api/world', { credentials: 'same-origin' });
+  if (!res.ok) throw new Error('Could not load the world.');
+  return res.json();
+}
+
+export async function cleanseWorld(tribeId) {
+  const res = await fetch('/api/world', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'cleanse', tribe_id: tribeId }),
+  });
+  if (!res.ok) throw new Error('Could not clean.');
+  return res.json();
+}
+
 // The council of the villages the student lives in, and a way to save one.
 export async function loadCouncils() {
   const res = await fetch('/api/council', { credentials: 'same-origin' });

@@ -247,6 +247,8 @@ export function createVillageScene(Phaser, ctx) {
         }
       }
 
+      this.startPresence();
+
       // The player may have found an answer here for someone in another village.
       this.time.delayedCall(700, () => this.showFound());
 
@@ -377,6 +379,68 @@ export function createVillageScene(Phaser, ctx) {
       return { x: x - width / 2, y: by - T * 0.55, w: width, h: T * 0.55 };
     }
 
+    // Tell the server we are in this village and ask who else is. When all the
+    // villagers of the village are here, a button for the council appears for all.
+    startPresence() {
+      const tribe = this.tribe;
+      const ctxp = ctx.presence;
+      if (!ctxp) return;
+      let stopped = false;
+      let opened = false; // the council window opened by itself once per meeting
+      const poll = async () => {
+        if (stopped) return;
+        await ctxp.beat(tribe.id);
+        let s;
+        try {
+          s = await ctxp.state(tribe.id);
+        } catch {
+          return;
+        }
+        if (stopped) return;
+        if (!s.resident || s.total < 2) {
+          ctx.ui.setCouncilBar(null);
+          return;
+        }
+        if (s.session_active) {
+          ctx.ui.setCouncilBar({ text: 'The village council is meeting.', label: 'Go to the council', onClick: () => this.openCouncil() });
+          if (!opened && !ctx.ui.isOpen()) {
+            opened = true;
+            this.openCouncil();
+          }
+        } else if (s.ready) {
+          opened = false;
+          ctx.ui.setCouncilBar({
+            text: 'All the villagers are here.',
+            label: 'Start the village council',
+            onClick: async () => {
+              const r = await ctxp.start(tribe.id);
+              if (r.ok) {
+                opened = true;
+                this.openCouncil();
+              }
+            },
+          });
+        } else {
+          opened = false;
+          ctx.ui.setCouncilBar({ text: `Council: ${s.here.length} of ${s.total} villagers are here. Waiting for ${s.missing.join(', ')}.` });
+        }
+      };
+      poll();
+      const timer = setInterval(poll, 5000);
+      this.events.once('shutdown', () => {
+        stopped = true;
+        clearInterval(timer);
+        ctx.ui.setCouncilBar(null);
+        ctxp.beat(null);
+      });
+    }
+
+    openCouncil() {
+      if (this.locked || ctx.ui.isOpen()) return;
+      this.locked = true;
+      ctx.openCouncil(this.tribe, () => this.unlock());
+    }
+
     // What a villager says about their problem, depending on how far the player has come.
     questTopics(villager) {
       const quest = questOf(ctx.content, villager);
@@ -387,6 +451,8 @@ export function createVillageScene(Phaser, ctx) {
         return say('I found the answer to your problem', quest.thanks, () => {
           ctx.progress.setQuest(villager.id, 'done');
           ctx.refreshHud();
+          // The ground around this village is cleaned of poison.
+          ctx.cleanse?.(villager.tribe_id);
         });
       }
       if (state === 'done') return say('About your problem', quest.thanks);

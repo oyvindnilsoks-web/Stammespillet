@@ -192,6 +192,7 @@ function renderNav() {
     <button data-view="villages" class="${view === 'villages' ? 'active' : ''}">Villages${count(pendingVillages)}</button>
     <button data-view="villagers" class="${view === 'villagers' ? 'active' : ''}">Villagers${count(pendingVillagers)}</button>
     <button data-view="councils" class="${view === 'councils' ? 'active' : ''}">Councils</button>
+    <button data-view="world" class="${view === 'world' ? 'active' : ''}">The poison</button>
     <button data-view="students" class="${view === 'students' ? 'active' : ''}">Students</button>
     <button data-view="settings" class="${view === 'settings' ? 'active' : ''}">Settings</button>
     <a href="#" id="admin-logout">Log out</a>`;
@@ -205,6 +206,69 @@ function renderNav() {
   nav.querySelector('#admin-logout').addEventListener('click', (e) => {
     e.preventDefault();
     logout();
+  });
+}
+
+// The poison of the evil villages: how far it has spread, and the controls.
+function renderWorld() {
+  const w = data.world;
+  if (!w) {
+    app.innerHTML = '<p class="admin-flash error">Could not load the poison. Reload the page.</p>';
+    return;
+  }
+  const evil = data.villages.filter((v) => v.status === 'approved' && v.charter_type === 'shadow').length;
+  const last = w.last_step_at ? new Date(w.last_step_at).toLocaleString('nb-NO', { dateStyle: 'short', timeStyle: 'short' }) : 'never';
+  const speeds = [1, 2, 5, 10, 20, 30, 60].map((m) => `<option value="${m}" ${m === w.speed_minutes ? 'selected' : ''}>every ${m} minute${m === 1 ? '' : 's'}</option>`).join('');
+  app.innerHTML = `
+    <p id="admin-flash" class="admin-flash" hidden></p>
+    <section class="admin-settings">
+      <h2>The poison</h2>
+      <p class="muted">The evil villages spread poison across the map, one cell at a time. Good villages keep it away around them, and a student who solves a problem cleans around the villager's village. If the poison covers ${h(w.win_percent)}% of the map, the evil villages win. It only moves while it is <strong>running</strong>, and by default only on school days between 08:00 and 15:30.</p>
+      <p><strong>${w.percent}%</strong> of the map is poisoned. Step ${w.step}. Last step: ${h(last)}. ${evil} approved evil village${evil === 1 ? '' : 's'}. ${w.result === 'evil' ? '<strong class="error">The poison has won.</strong> Reset it to start again.' : ''}</p>
+      <div class="world-controls">
+        <button class="small-btn" data-world-run="${w.paused ? 'start' : 'pause'}">${w.paused ? 'Start the poison' : 'Pause the poison'}</button>
+        <button class="small-btn" data-world-step>Step now</button>
+        <button class="small-btn danger" data-world-reset>Reset (clear all poison)</button>
+      </div>
+      <div class="world-controls">
+        <label>Speed <select data-world-speed>${speeds}</select></label>
+        <label>The evil villages win at <input type="number" min="10" max="100" step="5" value="${h(w.win_percent)}" data-world-win style="width:4.5rem"> % of the map</label>
+        <label><input type="checkbox" data-world-hours ${w.school_hours_only ? 'checked' : ''}> Only in school hours</label>
+      </div>
+      <p class="muted">Status: ${w.paused ? 'paused' : 'running'}.</p>
+    </section>`;
+
+  const set = async (body, message) => {
+    try {
+      await api('POST', { action: 'world-set', ...body });
+      await reload();
+      flash(message);
+    } catch (err) {
+      if (err.message !== 'Logged out') flash(err.message, true);
+    }
+  };
+  app.querySelector('[data-world-run]').addEventListener('click', (e) => set({ paused: e.target.dataset.worldRun === 'pause' }, w.paused ? 'The poison is running.' : 'The poison is paused.'));
+  app.querySelector('[data-world-speed]').addEventListener('change', (e) => set({ speed_minutes: Number(e.target.value) }, 'Speed changed.'));
+  app.querySelector('[data-world-win]').addEventListener('change', (e) => set({ win_percent: Number(e.target.value) }, 'Changed.'));
+  app.querySelector('[data-world-hours]').addEventListener('change', (e) => set({ school_hours_only: e.target.checked }, 'Changed.'));
+  app.querySelector('[data-world-step]').addEventListener('click', async () => {
+    try {
+      const r = await api('POST', { action: 'world-step' });
+      await reload();
+      flash(r.result && r.result.step ? `Step ${r.result.step}: ${r.result.percent}% poisoned.` : `Nothing happened: ${(r.result && r.result.skipped) || 'unknown'}.`);
+    } catch (err) {
+      if (err.message !== 'Logged out') flash(err.message, true);
+    }
+  });
+  app.querySelector('[data-world-reset]').addEventListener('click', async () => {
+    if (!confirm('Clear all the poison and start again? This cannot be undone.')) return;
+    try {
+      await api('POST', { action: 'world-reset' });
+      await reload();
+      flash('The poison is gone. It is paused until you start it.');
+    } catch (err) {
+      if (err.message !== 'Logged out') flash(err.message, true);
+    }
   });
 }
 
@@ -312,6 +376,10 @@ function render() {
   }
   if (view === 'councils') {
     renderCouncils();
+    return;
+  }
+  if (view === 'world') {
+    renderWorld();
     return;
   }
 

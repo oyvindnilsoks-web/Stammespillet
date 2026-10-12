@@ -12,6 +12,7 @@ const TEXT = {
     loading: 'Loading…',
     intro: 'You decide this together with everyone who lives in your village. Choose one council leader: only the leader can save, so you do not overwrite each other. Allies are friends. Enemies cannot visit your village, and you cannot visit them.',
     none: 'You get a seat in the council when your village, or a villager you wrote, has been approved by the teacher.',
+    meetInVillage: 'The council meets in the village. When all the villagers are standing in the village in the game, a button appears for all of you to start the council. Here you can read what has been decided.',
     government: 'How is the village ruled?',
     governmentHelp: 'A king, a council of elders, the strongest, everybody together…',
     god: 'Which god or gods do they believe in?',
@@ -39,6 +40,7 @@ const TEXT = {
     loading: 'Laster …',
     intro: 'Dette bestemmer dere sammen med alle som bor i landsbyen. Velg én rådsleder: bare lederen kan lagre, så dere ikke skriver over hverandre. Allierte er venner. Fiender kan ikke besøke landsbyen deres, og dere kan ikke besøke dem.',
     none: 'Du får plass i rådet når landsbyen din, eller en innbygger du har skrevet, er godkjent av læreren.',
+    meetInVillage: 'Rådet møtes i landsbyen. Når alle innbyggerne står i landsbyen i spillet, dukker det opp en knapp til alle for å starte rådet. Her kan du lese hva som er bestemt.',
     government: 'Hvordan styres landsbyen?',
     governmentHelp: 'En konge, et råd av eldre, den sterkeste, alle sammen …',
     god: 'Hvilken gud eller hvilke guder tror de på?',
@@ -90,16 +92,19 @@ function readOnly(council, villages, t) {
   return body || `<p class="muted">${t.nothingYet}</p>`;
 }
 
-function card(council, villages, lang, t, translation) {
+function card(council, villages, lang, t, translation, live) {
   // A council written in Norwegian is edited in Norwegian.
   const useOriginal = lang === 'no' && translation && council.source_lang === 'no' && council.original;
   const value = (key) => (useOriginal ? council.original[key] : council[key]) || '';
   const noOthers = villages.filter((v) => v.id !== council.tribe_id).length === 0;
   const head = `<div class="charter-head"><div><h3>${h(council.name || '')}</h3></div></div>`;
 
-  if (!council.can_edit) {
+  // On the Contribute page the council is only read. In the game, while the
+  // council meets, the leader can write it and the others read it live.
+  if (!live || !council.can_edit) {
+    const note = live && council.leader ? t.onlyLeader(h(council.leader.name)) : t.meetInVillage;
     return `<section class="charter-section council" data-council="${h(council.tribe_id)}">${head}
-      <p class="charter-lede">${t.onlyLeader(h(council.leader.name))}</p>${readOnly(council, villages, t)}</section>`;
+      <p class="charter-lede">${note}</p>${readOnly(council, villages, t)}</section>`;
   }
 
   const chosenLeader = council.leader ? council.leader.id : (council.villagers.find((v) => v.mine) || {}).id;
@@ -119,7 +124,9 @@ function card(council, villages, lang, t, translation) {
   </section>`;
 }
 
-export async function renderCouncil(host, { lang, translation }) {
+export async function renderCouncil(host, options) {
+  const { lang, translation, tribeId = null, live = false } = options;
+  clearInterval(host._councilTimer);
   const t = TEXT[lang === 'no' ? 'no' : 'en'];
   host.innerHTML = `<p>${t.loading}</p>`;
   let data;
@@ -129,14 +136,23 @@ export async function renderCouncil(host, { lang, translation }) {
     host.innerHTML = `<p class="error">${t.loadFailed}</p>`;
     return;
   }
+  if (tribeId) data.councils = data.councils.filter((c) => c.tribe_id === tribeId);
   if (!data.councils.length) {
     host.innerHTML = `<p>${t.none}</p>`;
     return;
   }
-  const notices = (data.notices || []).length
+  const notices = !live && (data.notices || []).length
     ? `<section class="council-news"><h3>${t.messages}</h3><ul>${data.notices.map((n) => `<li>${(n.kind === 'enemy' ? t.enemy : t.ally)(h(n.from_name), h(n.to_name))}</li>`).join('')}</ul></section>`
     : '';
-  host.innerHTML = `${notices}<p class="charter-lede">${t.intro}</p>${data.councils.map((c) => card(c, data.villages, lang, t, data.translation)).join('')}`;
+  host.innerHTML = `${notices}<p class="charter-lede">${t.intro}</p>${data.councils.map((c) => card(c, data.villages, lang, t, data.translation, live)).join('')}`;
+
+  // While the council meets, those who cannot write it see the leader's changes.
+  if (live && !data.councils.some((c) => c.can_edit)) {
+    host._councilTimer = setInterval(() => {
+      if (!host.isConnected) clearInterval(host._councilTimer);
+      else renderCouncil(host, options);
+    }, 6000);
+  }
 
   // A village is an ally or an enemy, not both: ticking one clears the other.
   host.addEventListener('change', (e) => {
@@ -171,7 +187,7 @@ export async function renderCouncil(host, { lang, translation }) {
         // Handing over the leadership: show the council as the new leader's.
         const before = data.councils.find((c) => c.tribe_id === section.dataset.council);
         const chosen = section.querySelector('[name="leader"]')?.value;
-        if (before && before.leader && chosen && before.leader.id !== chosen) setTimeout(() => renderCouncil(host, { lang, translation }), 600);
+        if (before && before.leader && chosen && before.leader.id !== chosen) setTimeout(() => renderCouncil(host, options), 600);
       } catch (err) {
         status.textContent = err.code === 'translation_unavailable' ? t.translateFailed : err.message || t.failed;
       } finally {

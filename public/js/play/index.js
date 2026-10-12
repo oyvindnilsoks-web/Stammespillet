@@ -1,5 +1,7 @@
 import { escapeHtml } from '../translate.js';
 import { createUi } from './ui.js';
+import { loadWorld, cleanseWorld, presenceBeat, presenceState, startCouncilSession } from '../api.js';
+import { renderCouncil } from '../council.js';
 import { ensureFigures, figureSheetUrl } from './figures.js';
 import { mappedVillages, villagersOf, ownVillagers, playerLook, allQuests, noticesFor } from './data.js';
 import { createWorldScene } from './world.js';
@@ -128,6 +130,41 @@ export function startPlay(container, content, { state, save }) {
 
       const ctx = { content, villages, ui, progress, mask: null, start: null };
       ctx.look = playerLook(content, progress.playingAs());
+      // The poison of the evil villages: fetched when the world is shown and now and then.
+      ctx.world = null;
+      ctx.reloadWorld = async () => {
+        try {
+          ctx.world = await loadWorld();
+        } catch {
+          return;
+        }
+        ctx.onWorld?.();
+        ctx.refreshHud();
+        if (ctx.world.result === 'evil' && !ctx.warned) {
+          ctx.warned = true;
+          ui.openNote('The poison has won', 'The evil villages', 'The poison has covered the map. Your teacher will clean the world so you can try again.');
+        }
+      };
+      // The villagers of a village meet in the village: where we stand, who is
+      // there, and the village council.
+      ctx.presence = {
+        beat: (tribeId) => presenceBeat(tribeId).catch(() => {}),
+        state: (tribeId) => presenceState(tribeId),
+        start: (tribeId) => startCouncilSession(tribeId),
+      };
+      ctx.openCouncil = (tribe, closed) =>
+        ui.openCouncil(tribe.name, (host) => renderCouncil(host, { lang: 'en', translation: false, tribeId: tribe.id, live: true }), closed);
+
+      // A solved problem cleans the ground around the villager's village.
+      ctx.cleanse = async (tribeId) => {
+        try {
+          const r = await cleanseWorld(tribeId);
+          await ctx.reloadWorld();
+          return r.ok;
+        } catch {
+          return false;
+        }
+      };
       ctx.refreshHud = () => {
         ctx.look = playerLook(content, progress.playingAs());
         const own = ownVillagers(content);
@@ -144,7 +181,8 @@ export function startPlay(container, content, { state, save }) {
         const people = villages.flatMap((v) => villagersOf(content, v.tribe.id));
         const met = people.filter((c) => progress.talked.has(c.id)).length;
         const openQuests = ctx.questLog().length;
-        ui.setHud(`${picker}<button type="button" class="play-quests-btn" id="play-quests">Problems <strong>${openQuests}</strong></button><span>Villages visited <strong>${visited}/${villages.length}</strong></span><span>Villagers met <strong>${met}/${people.length}</strong></span>`);
+        const poison = ctx.world && !ctx.world.paused ? `<span class="play-poison">Poison <strong>${ctx.world.percent}%</strong></span>` : '';
+        ui.setHud(`${picker}${poison}<button type="button" class="play-quests-btn" id="play-quests">Problems <strong>${openQuests}</strong></button><span>Villages visited <strong>${visited}/${villages.length}</strong></span><span>Villagers met <strong>${met}/${people.length}</strong></span>`);
       };
 
       wrap.querySelector('#play-hud').addEventListener('change', (e) => {

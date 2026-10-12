@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { parseCookies } = require('./_lib/cookies');
 const { ADMIN_COOKIE, isAdminToken } = require('./_lib/session');
+const worldLib = require('./_lib/world');
 const { getSupabaseAdmin } = require('./_lib/supabaseAdmin');
 const { loadOwners } = require('./_lib/students');
 
@@ -31,6 +32,12 @@ function num(v) {
 }
 
 async function loadAll(supabase) {
+  let worldState = null;
+  try {
+    worldState = worldLib.summary(await worldLib.loadState(supabase));
+  } catch (e) {
+    console.error('Could not load the world:', e.message);
+  }
   const [villages, villagers, media, settings, memberRows, studentRows, councilRows] = await Promise.all([
     supabase.from('tribes').select('*').order('created_at'),
     supabase.from('characters').select('*').order('created_at'),
@@ -58,6 +65,7 @@ async function loadAll(supabase) {
     members,
     students: studentRows.data,
     councils: councilRows.data,
+    world: worldState,
     villages: villages.data,
     villagers: villagers.data,
     media: media.data,
@@ -308,6 +316,44 @@ async function clearCouncil(supabase, { tribe_id: tribeId }) {
   return json(200, { ok: true });
 }
 
+// The poison: start and pause, how often it moves, when the evil villages win,
+// whether it only moves in school hours, one step now, and a reset.
+async function worldSet(supabase, body) {
+  const patch = {};
+  if (body.paused !== undefined) {
+    if (typeof body.paused !== 'boolean') return json(400, { error: 'Invalid setting' });
+    patch.paused = body.paused;
+  }
+  if (body.speed_minutes !== undefined) {
+    if (![1, 2, 5, 10, 20, 30, 60].includes(Number(body.speed_minutes))) return json(400, { error: 'Choose 1, 2, 5, 10, 20, 30 or 60 minutes.' });
+    patch.speed_minutes = Number(body.speed_minutes);
+  }
+  if (body.win_percent !== undefined) {
+    const n = Number(body.win_percent);
+    if (!Number.isInteger(n) || n < 10 || n > 100) return json(400, { error: 'The percentage must be between 10 and 100.' });
+    patch.win_percent = n;
+  }
+  if (body.school_hours_only !== undefined) {
+    if (typeof body.school_hours_only !== 'boolean') return json(400, { error: 'Invalid setting' });
+    patch.school_hours_only = body.school_hours_only;
+  }
+  // Starting after the evil villages have won means starting over.
+  const state = await worldLib.loadState(supabase);
+  if (patch.paused === false && state.result) return json(409, { error: 'The poison has already won. Reset it first.' });
+  await worldLib.saveState(supabase, { ...state, ...patch });
+  return json(200, { ok: true, world: worldLib.summary({ ...state, ...patch }) });
+}
+
+async function worldStep(supabase) {
+  const result = await worldLib.advance(supabase, new Date(), { force: true });
+  return json(200, { ok: true, result });
+}
+
+async function worldReset(supabase) {
+  await worldLib.reset(supabase);
+  return json(200, { ok: true });
+}
+
 async function setSetting(supabase, { key, value }) {
   if (key !== 'submissions_open' || typeof value !== 'boolean') return json(400, { error: 'Invalid setting' });
   const { error } = await supabase.from('settings').upsert({ key, value });
@@ -322,6 +368,9 @@ const ACTIONS = {
   'set-owner': setOwner,
   'delete-student': deleteStudent,
   'clear-council': clearCouncil,
+  'world-set': worldSet,
+  'world-step': worldStep,
+  'world-reset': worldReset,
   delete: deleteRow,
   'upload-url': uploadUrl,
   'add-media': addMedia,

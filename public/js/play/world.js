@@ -1,4 +1,4 @@
-import { buildMask, connectVillages, terrainAt } from './mask.js';
+import { buildMask, connectVillages, terrainAt, MASK_COLS, MASK_ROWS } from './mask.js';
 import { shieldOf, isEnemy, villagersOf } from './data.js';
 import { mediaUrl } from '../content.js';
 
@@ -59,6 +59,8 @@ export function createWorldScene(Phaser, ctx) {
           .setVisible(ctx.progress.visited.has(v.tribe.id));
         return { village: v, x, y, label, tick };
       });
+
+      this.initPoison(W, H);
 
       // The shield of a village, when the teacher has added one, above its sign.
       const shields = this.signs
@@ -134,6 +136,55 @@ export function createWorldScene(Phaser, ctx) {
         },
       });
       ctx.refreshHud();
+    }
+
+    // The poison of the evil villages, drawn over the map. It is fetched from the
+    // server now and then; the figure is slowed down and turns green in it.
+    initPoison(W, H) {
+      this.poison = null; // Uint8Array, one byte per cell
+      const texture = this.textures.exists('poison') ? this.textures.get('poison') : this.textures.createCanvas('poison', MASK_COLS, MASK_ROWS);
+      texture.setFilter(Phaser.Textures.FilterMode.LINEAR); // soft edges, not blocks
+      this.poisonImage = this.add.image(0, 0, 'poison').setOrigin(0, 0).setDisplaySize(W, H).setDepth(1.5).setVisible(false);
+      this.tweens.add({ targets: this.poisonImage, alpha: { from: 0.55, to: 0.8 }, duration: 1800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      const draw = () => {
+        const world = ctx.world;
+        if (!world || !world.poison) {
+          this.poison = null;
+          this.poisonImage.setVisible(false);
+          return;
+        }
+        const bytes = Uint8Array.from(atob(world.poison), (c) => c.charCodeAt(0));
+        if (bytes.length !== MASK_COLS * MASK_ROWS) return;
+        this.poison = bytes;
+        const canvas = this.textures.get('poison').getSourceImage();
+        const g = canvas.getContext('2d');
+        const image = g.createImageData(MASK_COLS, MASK_ROWS);
+        for (let i = 0; i < bytes.length; i++) {
+          const level = bytes[i];
+          image.data[i * 4] = 110 - level * 0.2; // purple at the edge, toxic green where it is thick
+          image.data[i * 4 + 1] = 30 + level * 0.55;
+          image.data[i * 4 + 2] = 150 - level * 0.4;
+          image.data[i * 4 + 3] = level ? 70 + level * 0.35 : 0;
+        }
+        g.putImageData(image, 0, 0);
+        this.textures.get('poison').refresh();
+        this.poisonImage.setVisible(true);
+      };
+      ctx.onWorld = draw;
+      draw();
+      ctx.reloadWorld?.();
+      this.poisonTimer = this.time.addEvent({ delay: 60000, loop: true, callback: () => ctx.reloadWorld?.() });
+      this.events.once('shutdown', () => {
+        ctx.onWorld = null;
+      });
+    }
+
+    // How much poison is under a spot of the world: 0 to 255.
+    poisonAt(x, y) {
+      if (!this.poison) return 0;
+      const cx = Math.floor((x / this.worldW) * MASK_COLS);
+      const cy = Math.floor((y / this.worldH) * MASK_ROWS);
+      return cx < 0 || cy < 0 || cx >= MASK_COLS || cy >= MASK_ROWS ? 0 : this.poison[cy * MASK_COLS + cx];
     }
 
     // 'land', 'sea', 'mountain' or 'frame' under a spot of the world.
@@ -212,7 +263,8 @@ export function createWorldScene(Phaser, ctx) {
       const where = this.terrain(p.x, p.y);
       if (vx || vy) {
         const length = Math.hypot(vx, vy) || 1;
-        const step = (where === 'sea' ? SWIM_SPEED : where === 'mountain' ? CLIMB_SPEED : SPEED) * dt;
+        const poisoned = this.poisonAt(p.x, p.y) >= 100;
+        const step = (where === 'sea' ? SWIM_SPEED : where === 'mountain' ? CLIMB_SPEED : SPEED) * dt * (poisoned ? 0.7 : 1);
         const nx = p.x + (vx / length) * step;
         const ny = p.y + (vy / length) * step;
         const before = { x: p.x, y: p.y };
@@ -229,6 +281,8 @@ export function createWorldScene(Phaser, ctx) {
         }
       }
       this.shadow.setPosition(p.x, p.y);
+      if (this.poisonAt(p.x, p.y) >= 100) p.setTint(0x9fe08a);
+      else p.clearTint();
       this.animate(time, Boolean(vx || vy), this.terrain(p.x, p.y));
 
       if (time > this.cooldownUntil && !ctx.ui.isOpen()) {
@@ -247,7 +301,7 @@ export function createWorldScene(Phaser, ctx) {
       const tribe = sign.village.tribe;
       const shield = shieldOf(ctx.content, tribe.id);
       const charter = tribe.charter || {};
-      const summary = charter.main_resource || charter.place || tribe.resource || '';
+      const summary = (tribe.charter_type === 'shadow' && charter.ambition) || charter.main_resource || charter.place || tribe.resource || '';
       const enemy = isEnemy(ctx.content, tribe);
       this.target = null;
       const back = () => {

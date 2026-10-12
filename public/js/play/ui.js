@@ -19,8 +19,14 @@ export function createUi(wrap) {
     'beforeend',
     `<div class="play-hud" id="play-hud" aria-live="polite"></div>
      <button type="button" class="play-prompt" id="play-prompt" hidden></button>
+     <div class="play-council-bar" id="play-council-bar" hidden></div>
      <div class="play-overlay" id="play-overlay" hidden role="dialog" aria-modal="true"></div>`
   );
+  const councilBar = wrap.querySelector('#play-council-bar');
+  let onCouncilBar = null;
+  councilBar.addEventListener('click', (e) => {
+    if (e.target.closest('button') && onCouncilBar) onCouncilBar();
+  });
   const hud = wrap.querySelector('#play-hud');
   const prompt = wrap.querySelector('#play-prompt');
   const overlay = wrap.querySelector('#play-overlay');
@@ -59,6 +65,33 @@ export function createUi(wrap) {
     setHud(html) {
       hud.innerHTML = html;
     },
+    // The bar about the village council: who is here, and a button when the
+    // villagers can start or join the council. null hides it.
+    setCouncilBar(bar) {
+      if (!bar) {
+        councilBar.hidden = true;
+        onCouncilBar = null;
+        return;
+      }
+      const html = `<span>${escapeHtml(bar.text)}</span>${bar.label ? `<button type="button" class="choice-btn">${escapeHtml(bar.label)}</button>` : ''}`;
+      if (councilBar.dataset.html !== html) {
+        councilBar.innerHTML = html;
+        councilBar.dataset.html = html;
+      }
+      onCouncilBar = bar.onClick || null;
+      councilBar.hidden = false;
+    },
+
+    // The window of the village council. build(host) fills it.
+    openCouncil(title, build, closed) {
+      show(
+        `<div class="play-window-head"><div><h2>${escapeHtml(title)}</h2><p class="muted">The village council</p></div><button class="small-btn" data-close>Close</button></div>
+         <div id="council-host"></div>`,
+        closed
+      );
+      build(overlay.querySelector('#council-host'));
+    },
+
     // The button at the bottom: what can be done here, and what clicking it does.
     setPrompt(message, action) {
       onPrompt = action || null;
