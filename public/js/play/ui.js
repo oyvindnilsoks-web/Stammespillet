@@ -71,8 +71,8 @@ export function createUi(wrap) {
     },
 
     // Talking to a villager: ask a question, read the answer.
-    openVillager(villager, tribe, frame, drawingUrl, closed) {
-      const topics = dialogTopics(villager);
+    openVillager(villager, tribe, frame, drawingUrl, closed, extraTopics = []) {
+      const topics = [...dialogTopics(villager), ...extraTopics];
       const buttons = topics.map((t, i) => `<button class="play-topic" data-topic="${i}">${escapeHtml(t.question)}</button>`).join('');
       show(
         `<div class="play-window-head">
@@ -88,6 +88,7 @@ export function createUi(wrap) {
       overlay.querySelectorAll('[data-topic]').forEach((btn) =>
         btn.addEventListener('click', () => {
           const topic = topics[Number(btn.dataset.topic)];
+          if (topic.onShow) topic.onShow();
           answer.innerHTML = `<p class="play-question">${escapeHtml(topic.question)}</p><p class="play-text">${text(topic.answer)}</p>`;
           overlay.querySelectorAll('.play-topic').forEach((b) => b.classList.toggle('active', b === btn));
         })
@@ -112,11 +113,42 @@ export function createUi(wrap) {
          </div>`,
         closed
       );
+      if (tribe.charter_type === 'shadow') overlay.firstElementChild.classList.add('dark');
       overlay.querySelector('[data-enter]')?.addEventListener('click', () => {
         onClose = null;
         close();
         enter();
       });
+    },
+
+    // Something the player finds or hears: a title, who it is for, and the text.
+    openNote(title, subtitle, body, closed) {
+      show(
+        `<div class="play-window-head">
+           <div><h2>${escapeHtml(title)}</h2><p class="muted">${escapeHtml(subtitle)}</p></div>
+           <button class="small-btn" data-close>OK</button>
+         </div>
+         <div class="play-answer"><p class="play-text">${text(body)}</p></div>`,
+        closed
+      );
+    },
+
+    // The problems the player has heard about, and what to do about each.
+    openQuestLog(items, closed) {
+      const rows = items.length
+        ? items
+            .map(
+              (q) => `<section class="play-block"><h3>${escapeHtml(q.who)} <span class="muted">· ${escapeHtml(q.where)}</span></h3>
+                <p class="play-text">${text(q.problem)}</p>
+                ${q.hint ? `<p><strong>Hint:</strong> ${text(q.hint)}</p>` : ''}
+                <p class="play-closed-note">${escapeHtml(q.status)}</p></section>`
+            )
+            .join('')
+        : '<p class="muted">No problems yet. Talk to the villagers and ask if they need help.</p>';
+      show(
+        `<div class="play-window-head"><div><h2>Problems to solve</h2></div><button class="small-btn" data-close>Close</button></div>${rows}`,
+        closed
+      );
     },
 
     // The sign in the middle of a village: what the students wrote about it.

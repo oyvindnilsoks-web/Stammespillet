@@ -63,12 +63,102 @@ export function mappedVillages(content) {
 const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
 // Does the text a village wrote under "enemies" name this village?
+export function listsVillage(list, tribe) {
+  return names(list, tribe);
+}
+
 function names(list, tribe) {
   const target = norm(tribe.name);
   if (!target) return false;
   // The whole name as words, so "Fred" does not match "Fredby".
   const words = (s) => ' ' + s.replace(/[^\p{L}\p{N}]+/gu, ' ').trim() + ' ';
   return words(norm(list)).includes(words(target));
+}
+
+// Where the other villages lie, nearest first: for "who are your neighbours?".
+function neighboursOf(content, tribe, count = 2) {
+  const t = tribe.territory || {};
+  if (!Number.isFinite(t.map_x) || !Number.isFinite(t.map_y)) return [];
+  return [...content.tribes.values()]
+    .filter((o) => o.id !== tribe.id && Number.isFinite((o.territory || {}).map_x) && Number.isFinite((o.territory || {}).map_y))
+    .map((o) => ({ tribe: o, d: Math.hypot(o.territory.map_x - t.map_x, o.territory.map_y - t.map_y) }))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, count)
+    .map((x) => x.tribe);
+}
+
+const GROUND = {
+  mountain: 'The ground here is stony and steep, and snow stays on the peaks.',
+  sea: 'We live by the sea. You can hear the waves all night.',
+  forest: 'We live deep in the forest. It is dark between the trees, even in the day.',
+  desert: 'It is dry here, with sand and hot wind.',
+  land: 'We live on open, good land.',
+};
+
+const list = (names) => (names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
+
+// Extra things a villager can talk about, made from what the students wrote
+// about the villager and the village (no one is making things up): where they
+// live, what the village is known for, what they do and like, the neighbours.
+// Only what there is something to say about is included, at most five.
+export function generatedTopics(content, villager, tribe, biome = 'land') {
+  const c = villager.charter || {};
+  const v = tribe.charter || {};
+  const shadow = tribe.charter_type === 'shadow';
+  const topics = [];
+
+  const home = [`I live in ${tribe.name}.`, shadow ? 'It is a cold and dark place. We do not talk much about it.' : GROUND[biome] || GROUND.land];
+  if (asText(v.place)) home.push(asText(v.place));
+  topics.push({ id: 'gen_home', question: 'Where do you live?', answer: home.join(' ') });
+
+  const known = [asText(v.main_resource) && `Our village is known for ${asText(v.main_resource)}.`, asText(v.best_at) && `We are good at: ${asText(v.best_at)}`].filter(Boolean);
+  if (known.length) topics.push({ id: 'gen_village', question: `What is ${tribe.name} known for?`, answer: known.join(' ') });
+
+  const job = asText(c.role) || asText(villager.role);
+  const likes = asText(c.interests);
+  if (job || likes) {
+    const day = [job && `I work as: ${job}.`, likes && `In my free time I like ${likes}.`].filter(Boolean);
+    topics.push({ id: 'gen_day', question: 'What do you do all day?', answer: day.join(' ') });
+  }
+
+  const near = neighboursOf(content, tribe);
+  if (near.length) {
+    const lines = [`Our closest neighbours are ${list(near.map((n) => n.name))}.`];
+    const foes = near.filter((n) => listsVillage(v.enemies, n) || listsVillage((n.charter || {}).enemies, tribe));
+    if (foes.length) lines.push(`We do not trust ${list(foes.map((n) => n.name))}.`);
+    topics.push({ id: 'gen_neighbours', question: 'Who are your neighbours?', answer: lines.join(' ') });
+  }
+
+  if (shadow && asText(v.ambition)) topics.push({ id: 'gen_ambition', question: 'What does your village want?', answer: asText(v.ambition) });
+  else if (asText(v.customs_law)) topics.push({ id: 'gen_law', question: 'Is there a rule I should know?', answer: asText(v.customs_law) });
+
+  return topics.slice(0, 5);
+}
+
+// A problem a villager has, if the student wrote a whole one: the problem,
+// where it can be solved, what is found there and the thanks. The answer can wait
+// in several villages, but never in the villager's own.
+export function questOf(content, villager) {
+  const c = villager.charter || {};
+  const problem = asText(c.quest_problem);
+  const found = asText(c.quest_found);
+  const targetText = asText(c.quest_target);
+  if (!problem || !found || !targetText) return null;
+  const targets = [...content.tribes.values()].filter((t) => t.id !== villager.tribe_id && listsVillage(targetText, t));
+  if (!targets.length) return null;
+  return { problem, hint: asText(c.quest_hint), found, thanks: asText(c.quest_thanks) || 'Thank you!', targets: targets.map((t) => t.id) };
+}
+
+// The problems of the characters a player can meet (not the player's own).
+export function allQuests(content) {
+  const own = new Set(content.mineCharacters || []);
+  const list = [];
+  for (const villager of content.characters.values()) {
+    if (own.has(villager.id)) continue;
+    const quest = questOf(content, villager);
+    if (quest) list.push({ villager, quest, tribe: content.tribes.get(villager.tribe_id) });
+  }
+  return list;
 }
 
 // The village the player belongs to is at war with this one, either way round.

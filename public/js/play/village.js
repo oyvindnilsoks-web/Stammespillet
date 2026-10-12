@@ -1,4 +1,5 @@
-import { figureFor, portraitOf, hashString, mulberry32, villagersOf, mediaOfTribe } from './data.js';
+import { figureFor, portraitOf, hashString, mulberry32, villagersOf, mediaOfTribe, questOf, allQuests, generatedTopics } from './data.js';
+import { sampleBiome } from './mask.js';
 import { mediaUrl } from '../content.js';
 
 // Inside a village: a little drawn village with houses, trees and a square.
@@ -36,6 +37,19 @@ const SLOTS = [
   [6, 9], [15, 9], [9, 5], [12, 5], [5, 7], [16, 7],
 ];
 
+// How a village looks depends on where the students placed it on the map.
+const BIOMES = {
+  land: { bg: '#3f6b35', grass: null, dirt: null, trees: 34, treeTint: null, treeFrames: TREES },
+  mountain: { bg: '#6f7a80', grass: 0xb4bec6, dirt: 0x9a9a9a, trees: 14, treeTint: 0xc5d3da, treeFrames: [28, 28, 16], rocks: 18, snow: true, wash: [0x8d969c, 0.8] },
+  forest: { bg: '#27451f', grass: 0x6c9a60, dirt: 0x7a6a4a, trees: 72, treeTint: 0x3f7a3f, treeFrames: [28, 28, 28, 16, 5], wash: [0x173318, 0.5] },
+  desert: { bg: '#c9a45c', grass: 0xe8c777, dirt: 0xcfa352, trees: 6, treeTint: 0xe0b060, treeFrames: [27], rocks: 8, wash: [0xdcb86a, 0.85] },
+  sea: { bg: '#2e6a9e', grass: 0xf0dc9c, dirt: 0xe0c07c, trees: 8, treeTint: null, treeFrames: [5, 27], water: true, wash: [0xe8d49a, 0.85] },
+};
+
+// An evil (shadow) village is gloomy whatever the ground is: dark and cold
+// colours, dead trees, fog and torches that flicker.
+const SHADOW = { bg: '#140d1c', grass: 0x5d4e6b, dirt: 0x4a3a4c, treeTint: 0x3b3047, treeFrames: [28, 28, 16], houseTint: 0x8b7a99, wash: [0x2a2036, 0.65] };
+
 export function createVillageScene(Phaser, ctx) {
   return class VillageScene extends Phaser.Scene {
     constructor() {
@@ -59,10 +73,24 @@ export function createVillageScene(Phaser, ctx) {
       const mark = (tx, ty, w = 1, h = 1) => {
         for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) used.add(`${tx + dx},${ty + dy}`);
       };
-      const tile = (frame, tx, ty, depth = 0) =>
-        this.add.image(tx * T + T / 2, ty * T + T / 2, 'town', frame).setScale(SCALE).setDepth(depth);
+      const tile = (frame, tx, ty, depth = 0, tint = null) => {
+        const image = this.add.image(tx * T + T / 2, ty * T + T / 2, 'town', frame).setScale(SCALE).setDepth(depth);
+        if (tint) image.setTint(tint);
+        return image;
+      };
 
-      this.cameras.main.setBackgroundColor('#3f6b35');
+      // The ground depends on where the village lies on the map.
+      const territory = tribe.territory || {};
+      ctx.biomes = ctx.biomes || {};
+      if (!ctx.biomes[tribe.id]) {
+        ctx.biomes[tribe.id] =
+          ctx.mapImage && Number.isFinite(territory.map_x) && Number.isFinite(territory.map_y) ? sampleBiome(ctx.mapImage, territory.map_x / 100, territory.map_y / 100) : 'land';
+      }
+      this.biome = ctx.biomes[tribe.id];
+      const shadow = tribe.charter_type === 'shadow';
+      const base = BIOMES[this.biome] || BIOMES.land;
+      const biome = shadow ? { ...base, ...SHADOW, trees: Math.max(base.trees, 40), rocks: Math.max(base.rocks || 0, 10), snow: base.snow, water: base.water } : base;
+      this.cameras.main.setBackgroundColor(biome.bg);
 
       // Ground: grass, with a dirt square in the middle and a path down to the exit.
       const isSquare = (x, y) => x >= 7 && x <= 14 && y >= 5 && y <= 9;
@@ -70,7 +98,22 @@ export function createVillageScene(Phaser, ctx) {
       for (let y = 0; y < ROWS; y++) {
         for (let x = 0; x < COLS; x++) {
           const dirt = isSquare(x, y) || isPath(x, y);
-          tile(dirt ? DIRT[Math.floor(rand() * DIRT.length)] : GRASS[Math.floor(rand() * GRASS.length)], x, y, 0);
+          tile(dirt ? DIRT[Math.floor(rand() * DIRT.length)] : GRASS[Math.floor(rand() * GRASS.length)], x, y, 0, dirt ? biome.dirt : biome.grass);
+        }
+      }
+
+      // A colour over the ground, so a mountain is grey and a desert sandy, not green.
+      if (biome.wash) this.add.rectangle(0, 0, W, H, biome.wash[0], biome.wash[1]).setOrigin(0, 0).setDepth(0.2);
+
+      // Snow patches on a mountain, water along the top at the sea.
+      if (biome.snow) {
+        for (let n = 0; n < 12; n++) this.add.ellipse(rand() * W, rand() * H, T * (1 + rand() * 1.5), T * (0.5 + rand() * 0.6), 0xffffff, 0.55).setDepth(0.5);
+      }
+      if (biome.water) {
+        this.add.rectangle(0, 0, W, T * 1.1, 0x3f86b8).setOrigin(0, 0).setDepth(1);
+        for (let n = 0; n < 14; n++) {
+          const wave = this.add.ellipse(rand() * W, T * (0.15 + rand() * 0.7), T * 0.9, 5, 0xdff2f5, 0.7).setDepth(1.1);
+          this.tweens.add({ targets: wave, x: wave.x + T * 0.5, alpha: 0.2, duration: 1400 + rand() * 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
         }
       }
 
@@ -78,9 +121,14 @@ export function createVillageScene(Phaser, ctx) {
       HOUSES.forEach((h, i) => {
         const colour = (hashString(tribe.id) + i) % 3 === 0 ? 'grey' : 'red';
         for (let c = 0; c < 3; c++) {
-          tile(ROOF_TOP[colour][c], h.x + c, h.y, 2);
-          tile(ROOF_LOW[colour][c], h.x + c, h.y + 1, 2);
-          tile(WALL[c], h.x + c, h.y + 2, 2);
+          tile(ROOF_TOP[colour][c], h.x + c, h.y, 2, biome.houseTint);
+          tile(ROOF_LOW[colour][c], h.x + c, h.y + 1, 2, biome.houseTint);
+          tile(WALL[c], h.x + c, h.y + 2, 2, biome.houseTint);
+        }
+        if (shadow) {
+          // A torch by the door that flickers.
+          const glow = this.add.ellipse(h.x * T + T * 1.5, (h.y + 3) * T - 6, T * 0.7, T * 0.7, 0xff7a30, 0.5).setDepth(3);
+          this.tweens.add({ targets: glow, alpha: 0.15, scale: 0.8, duration: 160 + rand() * 260, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: rand() * 300 });
         }
         this.blocks.push({ x: h.x * T, y: h.y * T + T * 0.6, w: 3 * T, h: 2.4 * T });
         mark(h.x, h.y, 3, 3);
@@ -105,7 +153,7 @@ export function createVillageScene(Phaser, ctx) {
       mark(signTile.x, signTile.y, 2, 1);
 
       // Trees along the edges and between the houses.
-      const treeCount = 34;
+      const treeCount = biome.trees;
       for (let n = 0, placed = 0; n < 400 && placed < treeCount; n++) {
         const x = Math.floor(rand() * COLS);
         const y = Math.floor(rand() * (ROWS - 2));
@@ -114,8 +162,21 @@ export function createVillageScene(Phaser, ctx) {
         // Keep the area around the houses' doors open.
         if (HOUSES.some((h) => x >= h.x - 0 && x <= h.x + 2 && y === h.y + 3)) continue;
         used.add(`${x},${y}`);
-        tile(TREES[Math.floor(rand() * TREES.length)], x, y, 2 + y / 100);
+        tile(biome.treeFrames[Math.floor(rand() * biome.treeFrames.length)], x, y, 2 + y / 100, biome.treeTint);
         this.blocks.push({ x: x * T + T * 0.2, y: y * T + T * 0.45, w: T * 0.6, h: T * 0.45 });
+        placed++;
+      }
+
+      // Boulders on the mountain and in the desert.
+      for (let n = 0, placed = 0; n < 300 && placed < (biome.rocks || 0); n++) {
+        const x = Math.floor(rand() * COLS);
+        const y = 1 + Math.floor(rand() * (ROWS - 3));
+        const nearSquare = x >= 6 && x <= 15 && y >= 4 && y <= 10;
+        if (used.has(`${x},${y}`) || isPath(x, y) || (x >= 9 && x <= 12 && y >= 9) || nearSquare) continue;
+        if (HOUSES.some((h) => x >= h.x && x <= h.x + 2 && y === h.y + 3)) continue;
+        used.add(`${x},${y}`);
+        this.add.ellipse(x * T + T / 2, y * T + T * 0.7, T * 0.85, T * 0.55, 0x8b9096).setStrokeStyle(3, 0x4a4e52).setDepth(2 + y / 100);
+        this.blocks.push({ x: x * T + T * 0.1, y: y * T + T * 0.4, w: T * 0.8, h: T * 0.5 });
         placed++;
       }
 
@@ -147,10 +208,23 @@ export function createVillageScene(Phaser, ctx) {
             ctx.progress.talk(villager.id);
             ctx.refreshHud();
             const drawing = portraitOf(ctx.content, villager.id);
-            ctx.ui.openVillager(villager, tribe, frame, drawing ? mediaUrl(drawing.storage_path) : null, () => this.unlock());
+            ctx.ui.openVillager(villager, tribe, frame, drawing ? mediaUrl(drawing.storage_path) : null, () => this.unlock(), [...generatedTopics(ctx.content, villager, tribe, this.biome), ...this.questTopics(villager)]);
           },
         });
       });
+
+      if (shadow) {
+        // Darkness over the ground, and fog drifting across it. The names of the
+        // villagers (depth 8) stay above it and easy to read.
+        this.add.rectangle(0, 0, W, H, 0x120818, 0.4).setOrigin(0, 0).setDepth(7);
+        for (let n = 0; n < 9; n++) {
+          const fog = this.add.ellipse(rand() * W, rand() * H, T * (4 + rand() * 3), T * (1.2 + rand()), 0xb8a8d0, 0.13).setDepth(7.1);
+          this.tweens.add({ targets: fog, x: fog.x + T * (rand() > 0.5 ? 2.5 : -2.5), duration: 7000 + rand() * 5000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        }
+      }
+
+      // The player may have found an answer here for someone in another village.
+      this.time.delayedCall(700, () => this.showFound());
 
       if (!villagers.length) {
         this.add
@@ -223,6 +297,47 @@ export function createVillageScene(Phaser, ctx) {
 
     unlock() {
       this.locked = false;
+    }
+
+    // What a villager says about their problem, depending on how far the player has come.
+    questTopics(villager) {
+      const quest = questOf(ctx.content, villager);
+      if (!quest) return [];
+      const state = ctx.progress.quest(villager.id);
+      const say = (question, answer, onShow) => [{ id: 'quest', question, answer, onShow }];
+      if (state === 'found') {
+        return say('I found the answer to your problem', quest.thanks, () => {
+          ctx.progress.setQuest(villager.id, 'done');
+          ctx.refreshHud();
+        });
+      }
+      if (state === 'done') return say('About your problem', quest.thanks);
+      const answer = quest.hint ? `${quest.problem}\n\nHint: ${quest.hint}` : quest.problem;
+      return say(state === 'open' ? 'About your problem' : 'Do you need help?', answer, () => {
+        if (!state) {
+          ctx.progress.setQuest(villager.id, 'open');
+          ctx.refreshHud();
+        }
+      });
+    }
+
+    // Problems from other villages that can be solved here: show what is found.
+    showFound() {
+      const here = allQuests(ctx.content).filter(
+        ({ villager, quest }) => ctx.progress.quest(villager.id) === 'open' && quest.targets.includes(this.tribe.id) && villager.tribe_id !== this.tribe.id
+      );
+      const next = () => {
+        const item = here.shift();
+        if (!item || this.leaving) return;
+        ctx.progress.setQuest(item.villager.id, 'found');
+        ctx.refreshHud();
+        this.locked = true;
+        ctx.ui.openNote(`Something for ${item.villager.name}`, `${this.tribe.name} · for the problem in ${item.tribe ? item.tribe.name : 'another village'}`, item.quest.found, () => {
+          this.unlock();
+          next();
+        });
+      };
+      if (!ctx.ui.isOpen()) next();
     }
 
     talk(item) {

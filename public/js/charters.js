@@ -191,7 +191,10 @@ const VILLAGER = [
     titleNo: 'Personlighet',
     prompts: ['Three words that describe them.', 'What do they like? What are they afraid of?'],
     promptsNo: ['Tre ord som beskriver dem.', 'Hva liker de? Hva er de redde for?'],
-    fields: [{ key: 'personality', type: 'area' }],
+    fields: [
+      { key: 'personality', type: 'area' },
+      { key: 'interests', label: 'What do they like to do?', labelNo: 'Hva liker de å gjøre?', type: 'text' },
+    ],
   },
   {
     num: 'IV',
@@ -208,6 +211,30 @@ const VILLAGER = [
       'Svar slik innbyggeren din ville gjort: med egne ord og humør.',
     ],
     fields: TALKS,
+  },
+  {
+    num: 'V',
+    title: 'A Problem to Solve (optional)',
+    titleNo: 'Et problem som må løses (valgfritt)',
+    lede: 'Does your villager have a problem? Then the player has to search for the answer in another village, and come back. The same answer can wait in several villages.',
+    ledeNo: 'Har innbyggeren din et problem? Da må spilleren lete etter svaret i en annen landsby og komme tilbake. Det samme svaret kan vente i flere landsbyer.',
+    prompts: [
+      'What is wrong, and what does your villager say about it?',
+      'Give a hint, but do not give away the place. The player has to search.',
+      'Write the exact name of the village (or villages, separated by commas) where the player finds the answer. It cannot be your own village.',
+    ],
+    promptsNo: [
+      'Hva er galt, og hva sier innbyggeren din om det?',
+      'Gi et hint, men ikke si hvor det er. Spilleren må lete.',
+      'Skriv nøyaktig navn på landsbyen (eller landsbyene, skilt med komma) der spilleren finner svaret. Det kan ikke være landsbyen deres.',
+    ],
+    fields: [
+      { key: 'quest_problem', label: 'The problem, in your villager’s words', labelNo: 'Problemet, med innbyggerens egne ord', type: 'area' },
+      { key: 'quest_hint', label: 'A hint about where to search', labelNo: 'Et hint om hvor spilleren kan lete', type: 'area' },
+      { key: 'quest_target', label: 'Village name(s) where the answer is', labelNo: 'Navn på landsbyen(e) der svaret finnes', type: 'text' },
+      { key: 'quest_found', label: 'What the player finds or hears there', labelNo: 'Det spilleren finner eller hører der', type: 'area' },
+      { key: 'quest_thanks', label: 'What your villager says when the problem is solved', labelNo: 'Det innbyggeren sier når problemet er løst', type: 'area' },
+    ],
   },
 ];
 

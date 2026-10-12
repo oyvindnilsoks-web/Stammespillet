@@ -50,6 +50,35 @@ export function buildMask(image) {
   return mask;
 }
 
+// The kind of ground around a spot of the map picture (x and y are fractions
+// 0 to 1): 'sea', 'mountain', 'forest', 'desert' or 'land'. Decided by what most
+// of the pixels around the spot look like.
+export function sampleBiome(image, fx, fy) {
+  const size = 17;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const radius = Math.round(image.width * 0.018); // a little over 2% of the map's width
+  ctx.drawImage(image, fx * image.width - radius, fy * image.height - radius, radius * 2, radius * 2, 0, 0, size, size);
+  const px = ctx.getImageData(0, 0, size, size).data;
+  const votes = { sea: 0, mountain: 0, forest: 0, desert: 0, land: 0 };
+  for (let i = 0; i < size * size; i++) {
+    const r = px[i * 4];
+    const g = px[i * 4 + 1];
+    const b = px[i * 4 + 2];
+    const luma = 0.3 * r + 0.59 * g + 0.11 * b;
+    let kind = 'land';
+    if (r - b < 45 && luma >= 105) kind = r - b < 28 ? 'sea' : 'mountain';
+    else if (luma < 92) kind = 'forest';
+    else if (r > 170 && g / r < 0.8) kind = 'desert';
+    votes[kind]++;
+  }
+  let best = 'land';
+  for (const kind of Object.keys(votes)) if (votes[kind] > votes[best]) best = kind;
+  return best;
+}
+
 function neighbours(mask, x, y) {
   let n = 0;
   for (let dy = -1; dy <= 1; dy++) {

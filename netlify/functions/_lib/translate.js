@@ -4,7 +4,7 @@
 
 // Names are not translated: a village or a person called "Kvitfjell" must keep
 // its name. Everything else the student wrote is translated.
-const SKIP_KEYS = new Set(['name', 'group_members', 'enemies']);
+const SKIP_KEYS = new Set(['name', 'group_members', 'enemies', 'quest_target']);
 
 // DeepL takes at most 50 texts per request.
 const CHUNK = 40;

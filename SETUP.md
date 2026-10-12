@@ -131,3 +131,7 @@ karakterer, scener) settes inn i Supabase-tabellene `tribes`, `characters`,
 `scenes` – enten via Supabase sitt Table Editor, eller via SQL/migrasjon når
 elevenes ferdigskrevne tekster er klare. Motoren er generisk og krever ingen
 kodeendring for å legge til flere stammer/karakterer/scener.
+
+## Utskriftsark
+
+Arkene til å skrive på papir ligger på `/ark.html` (`?ark=village`, `?ark=villager`, `?ark=shadow`). De leses fra `public/js/charters.js`, så de er alltid like skjemaene på nettsiden. Ingen innlogging trengs.

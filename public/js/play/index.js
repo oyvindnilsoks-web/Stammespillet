@@ -1,7 +1,7 @@
 import { escapeHtml } from '../translate.js';
 import { createUi } from './ui.js';
 import { ensureFigures, figureSheetUrl } from './figures.js';
-import { mappedVillages, villagersOf, ownVillagers, playerLook } from './data.js';
+import { mappedVillages, villagersOf, ownVillagers, playerLook, allQuests } from './data.js';
 import { createWorldScene } from './world.js';
 import { createVillageScene } from './village.js';
 
@@ -56,6 +56,14 @@ function createProgress(state, save) {
     },
     position() {
       return Number.isFinite(play.x) && Number.isFinite(play.y) ? { x: play.x, y: play.y } : null;
+    },
+    // 'open' (heard about it), 'found' (found the answer), 'done' (told the villager).
+    quest(id) {
+      return (play.quests || {})[id] || null;
+    },
+    setQuest(id, state) {
+      play.quests = { ...(play.quests || {}), [id]: state };
+      progress.save();
     },
     playingAs() {
       return play.as || null;
@@ -128,13 +136,29 @@ export function startPlay(container, content, { state, save }) {
         const visited = [...progress.visited].filter((id) => villageIds.has(id)).length;
         const people = villages.flatMap((v) => villagersOf(content, v.tribe.id));
         const met = people.filter((c) => progress.talked.has(c.id)).length;
-        ui.setHud(`${picker}<span>Villages visited <strong>${visited}/${villages.length}</strong></span><span>Villagers met <strong>${met}/${people.length}</strong></span>`);
+        const openQuests = ctx.questLog().length;
+        ui.setHud(`${picker}<button type="button" class="play-quests-btn" id="play-quests">Problems <strong>${openQuests}</strong></button><span>Villages visited <strong>${visited}/${villages.length}</strong></span><span>Villagers met <strong>${met}/${people.length}</strong></span>`);
       };
 
       wrap.querySelector('#play-hud').addEventListener('change', (e) => {
         if (e.target.id !== 'play-as') return;
         progress.playAs(e.target.value);
         ctx.refreshHud();
+      });
+
+      // The list of problems the player has heard about.
+      ctx.questLog = () =>
+        allQuests(content)
+          .filter(({ villager }) => progress.quest(villager.id) === 'open' || progress.quest(villager.id) === 'found')
+          .map(({ villager, quest, tribe }) => ({
+            who: villager.name,
+            where: tribe ? tribe.name : '',
+            problem: quest.problem,
+            hint: quest.hint,
+            status: progress.quest(villager.id) === 'found' ? `You found the answer. Go back to ${villager.name} and tell them.` : 'Not solved yet. Search other villages.',
+          }));
+      wrap.querySelector('#play-hud').addEventListener('click', (e) => {
+        if (e.target.closest('#play-quests') && !ui.isOpen()) ui.openQuestLog(ctx.questLog());
       });
 
       const Boot = class extends Phaser.Scene {

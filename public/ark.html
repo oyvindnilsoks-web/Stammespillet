@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ark til utskrift – Stammespillet</title>
+  <style>
+    :root { --ink: #1c1a17; --faint: #777; --line: #444; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 12pt/1.4 Georgia, 'Times New Roman', serif; color: var(--ink); background: #eee; }
+    .bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; padding: 0.6rem 1rem; background: #2b2118; color: #f2e9da; font: 14px system-ui, sans-serif; }
+    .bar a, .bar button { font: inherit; padding: 0.3rem 0.8rem; border: 1px solid #c4903a; border-radius: 6px; background: transparent; color: inherit; text-decoration: none; cursor: pointer; }
+    .bar a.on { background: #c4903a; color: #1c1a17; }
+    .bar .hint { margin-left: auto; opacity: 0.8; }
+    .sheet { max-width: 190mm; margin: 1rem auto; padding: 12mm 14mm; background: #fff; }
+    h1 { margin: 0 0 0.2rem; font-size: 20pt; }
+    .sub { margin: 0 0 1rem; color: var(--faint); font-size: 10.5pt; }
+    .who { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin: 0 0 1rem; }
+    section { margin: 0 0 1.1rem; break-inside: avoid; }
+    h2 { margin: 0; font-size: 13pt; display: flex; gap: 0.5rem; align-items: baseline; }
+    h2 .num { color: var(--faint); font-style: italic; min-width: 1.6rem; }
+    h2 .en { font-size: 10pt; font-weight: normal; color: var(--faint); font-style: italic; }
+    .lede { margin: 0.2rem 0 0; font-size: 10.5pt; }
+    ul.prompts { margin: 0.25rem 0 0.4rem 1.2rem; padding: 0; font-size: 10.5pt; color: #333; }
+    ul.prompts .en { display: block; color: var(--faint); font-style: italic; font-size: 9.5pt; }
+    .field { margin: 0.5rem 0; }
+    .field .label { font-size: 10.5pt; font-weight: bold; }
+    .field .label .en { font-weight: normal; color: var(--faint); font-style: italic; font-size: 9.5pt; }
+    .line { border-bottom: 1px solid var(--line); height: 1.7rem; }
+    .box { border: 1px solid var(--line); border-radius: 3px; min-height: 5.6rem; background-image: repeating-linear-gradient(transparent 0, transparent calc(1.6rem - 1px), #cfcfcf calc(1.6rem - 1px), #cfcfcf 1.6rem); }
+    .box.short { min-height: 3.3rem; }
+    .map { position: relative; border: 1px solid var(--line); }
+    .map img { display: block; width: 100%; }
+    .figures { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2mm; margin-top: 0.4rem; }
+    .figures div { text-align: center; font-size: 8.5pt; border: 1px solid #bbb; border-radius: 4px; padding: 1mm 0; }
+    .figures .play-portrait { display: block; width: 64px; height: 64px; zoom: 0.8; margin: 0 auto 0.5mm; background-image: var(--figure-sheet); background-size: 640px 384px; image-rendering: pixelated; }
+    .draw { border: 1px solid var(--line); border-radius: 3px; height: 60mm; }
+    .talks { display: grid; gap: 0.5rem; }
+    .talk { break-inside: avoid; border: 1px solid #bbb; border-radius: 4px; padding: 0.35rem 0.5rem; }
+    .talk .row { display: grid; grid-template-columns: 5.5rem 1fr; gap: 0.4rem; align-items: end; margin: 0.15rem 0; font-size: 10pt; }
+    .talk .answer { align-items: start; }
+    .talk .box { min-height: 3.4rem; }
+    @media print {
+      body { background: #fff; }
+      .bar { display: none; }
+      .sheet { margin: 0; max-width: none; padding: 0; box-shadow: none; page-break-after: always; }
+      .sheet:last-child { page-break-after: auto; }
+      @page { size: A4; margin: 14mm; }
+      .box { background-image: repeating-linear-gradient(transparent 0, transparent calc(1.6rem - 1px), #ccc calc(1.6rem - 1px), #ccc 1.6rem) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bar" id="bar"></div>
+  <div id="app"></div>
+  <script type="module" src="/js/ark.js"></script>
+</body>
+</html>

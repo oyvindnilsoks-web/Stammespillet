@@ -14,9 +14,6 @@ docs/
 ├── BOKSKRIVER_SYSTEMPROMPT.md
 └── briefs/
     └── 02_gallery_credits_music.md   ← oppfølgingsoppdraget (galleri/rulletekst/musikk/sideplott)
-forms/
-├── character-form.docx
-└── tribe-form.docx
 assets/
 └── audio/
     └── LEGG_MUSIKK_HER.txt
@@ -26,10 +23,13 @@ assets/
 
 Når filene er kopiert inn, gi Claude Code denne beskjeden:
 
-> Jeg har lagt til nye filer i `docs/`, `forms/`, og `assets/audio/`.
+> Jeg har lagt til nye filer i `docs/` og `assets/audio/`.
 > Legg dem til i git (`git add -A`), commit med en kort beskrivende
 > melding, og push til GitHub. Ikke gjør noe annet ennå – vi tar
 > `docs/briefs/02_gallery_credits_music.md` som eget oppdrag senere.
 
 Dette gir dere en ren commit for "la til manglende dokumentasjon og
 skjemaer", adskilt fra selve funksjonsarbeidet i brief 02.
+
+
+> Utskriftsark: de gamle Word-skjemaene i `forms/` er fjernet. Arkene lages nå av nettsiden, med samme spørsmål som skjemaene: `/ark.html?ark=village`, `?ark=villager` og `?ark=shadow`. Velg ark og trykk «Skriv ut» (eller Ctrl+P).

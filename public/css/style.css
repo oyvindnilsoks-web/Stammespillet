@@ -665,3 +665,9 @@ main.wide { max-width: 1000px; }
 .play-hud { align-items: center; }
 .play-hud .play-as { pointer-events: auto; display: flex; gap: 0.4rem; align-items: center; }
 .play-hud select { font-size: 0.8rem; padding: 0.1rem 0.3rem; max-width: 9rem; }
+
+.play-quests-btn { pointer-events: auto; font: inherit; font-size: 0.8rem; padding: 0.15rem 0.6rem; border: 1px solid var(--accent); border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; }
+.play-closed-note { margin: 0.3rem 0 0; color: var(--muted-text); font-style: italic; }
+
+.play-window.dark { background: #1b1422; border-color: #7a3a4a; }
+.play-window.dark h2 { color: #e8a0a0; }

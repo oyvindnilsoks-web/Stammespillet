@@ -39,15 +39,17 @@ export function createWorldScene(Phaser, ctx) {
         ctx.mask = mask;
       }
       this.mask = ctx.mask;
+      ctx.mapImage = this.textures.get('map').getSourceImage();
 
       // A sign and a name for every village.
       this.signs = ctx.villages.map((v) => {
         const x = v.fx * W;
         const y = v.fy * H;
         this.add.ellipse(x, y + 2, 34, 12, 0x000000, 0.3).setDepth(2);
-        this.add.image(x, y, 'town', 83).setOrigin(0.5, 1).setScale(SIGN_SCALE).setDepth(3);
+        const post = this.add.image(x, y, 'town', 83).setOrigin(0.5, 1).setScale(SIGN_SCALE).setDepth(3);
+        if (v.tribe.charter_type === 'shadow') post.setTint(0x8a5a6a);
         const label = this.add
-          .text(x, y + 8, v.tribe.name, { fontFamily: 'Georgia, serif', fontSize: '17px', color: '#f2e9da', stroke: '#1b1712', strokeThickness: 5 })
+          .text(x, y + 8, v.tribe.name, { fontFamily: 'Georgia, serif', fontSize: '17px', color: v.tribe.charter_type === 'shadow' ? '#e8a0a0' : '#f2e9da', stroke: '#1b1712', strokeThickness: 5 })
           .setOrigin(0.5, 0)
           .setDepth(4);
         const tick = this.add
