@@ -8,14 +8,124 @@ const crypto = require('crypto');
 const QUESTIONS = 5;
 const TOKEN_MS = 10 * 60 * 1000;
 
-// Used when the teacher has not written a list of words. Norwegian = English.
-const DEFAULT_WORDS = [
-  ['hus', 'house'], ['båt', 'boat'], ['hav', 'sea'], ['fjell', 'mountain'], ['skog', 'forest'], ['elv', 'river'], ['landsby', 'village'], ['venn', 'friend'],
-  ['fiende', 'enemy'], ['konge', 'king'], ['dronning', 'queen'], ['sverd', 'sword'], ['skjold', 'shield'], ['gift', 'poison'], ['lete', 'search'], ['finne', 'find'],
-  ['hjelpe', 'help'], ['redd', 'afraid'], ['modig', 'brave'], ['sterk', 'strong'], ['svak', 'weak'], ['mørk', 'dark'], ['lys', 'light'], ['kald', 'cold'],
-  ['varm', 'warm'], ['vann', 'water'], ['ild', 'fire'], ['jord', 'earth'], ['vind', 'wind'], ['sol', 'sun'], ['måne', 'moon'], ['stjerne', 'star'],
-  ['dag', 'day'], ['natt', 'night'], ['mat', 'food'], ['brød', 'bread'], ['fisk', 'fish'], ['fugl', 'bird'], ['hest', 'horse'], ['tre', 'tree'],
-].map(([no, en]) => ({ no, en }));
+// Used when the teacher has not written a list of words: 100 everyday words a
+// pupil is expected to know by the end of 7th grade, in groups (family, school,
+// animals, food, colours, describing words, the body, time, nature, places and
+// everyday verbs). Norwegian = English. A word with more than one right answer
+// has them split by "/".
+const DEFAULT_WORDS_TEXT = `
+mor = mother
+far = father
+bror = brother
+søster = sister
+venn = friend
+familie = family
+gutt = boy
+jente = girl
+lærer = teacher
+barn = child
+
+hus = house
+hjem = home
+skole = school
+bok = book
+bord = table
+stol = chair
+dør = door
+
+hund = dog
+katt = cat
+hest = horse
+ku = cow
+gris = pig
+fugl = bird
+fisk = fish
+kanin = rabbit
+
+eple = apple
+brød = bread
+melk = milk
+vann = water
+ost = cheese
+egg = egg
+frokost = breakfast
+middag = dinner
+sulten = hungry
+
+rød = red
+blå = blue
+grønn = green
+gul = yellow
+svart = black
+hvit = white
+brun = brown
+
+stor = big/large
+liten = small/little
+gammel = old
+ny = new
+glad = happy/glad
+trist = sad
+sint = angry/mad
+trøtt/sliten = tired
+kald = cold
+varm/het = hot/warm
+rask = fast/quick
+langsom = slow
+lett = easy/light
+vanskelig = difficult/hard
+vakker/pen = beautiful/pretty
+
+hode = head
+hånd = hand
+fot = foot
+øye = eye
+øre = ear
+nese = nose
+munn = mouth
+ben = leg/bone
+
+dag = day
+natt = night
+morgen = morning
+uke = week
+år = year
+i dag = today
+i morgen = tomorrow
+i går = yesterday
+
+sol = sun
+regn = rain
+snø = snow
+vind = wind
+tre = tree/three
+blomst = flower
+fjell = mountain
+hav = sea
+elv = river
+skog = forest
+
+by = town/city
+landsby = village
+bil = car
+båt = boat
+tog = train
+
+løpe = run
+hoppe = jump
+svømme = swim
+lese = read
+skrive = write
+lytte = listen
+snakke = speak/talk
+spise = eat
+drikke = drink
+sove = sleep
+leke = play
+hjelpe = help
+spørre = ask
+`;
+const DEFAULT_WORDS = parseWords(DEFAULT_WORDS_TEXT);
 
 function key() {
   const secret = process.env.SESSION_SECRET;
@@ -86,11 +196,14 @@ function mathQuestion() {
   return { prompt: `${percent}% of ${base} =`, answer: String((base * percent) / 100) };
 }
 
+// The first of the right forms ("trøtt/sliten" -> "trøtt"): that is what is asked.
+const firstForm = (text) => String(text).split('/')[0].trim();
+
 function vocabQuestion(words) {
   const w = pick(words);
   return crypto.randomInt(5) === 0
-    ? { prompt: `Translate to Norwegian: ${w.en}`, answer: w.no }
-    : { prompt: `Translate to English: ${w.no}`, answer: w.en };
+    ? { prompt: `Translate to Norwegian: ${firstForm(w.en)}`, answer: w.no }
+    : { prompt: `Translate to English: ${firstForm(w.no)}`, answer: w.en };
 }
 
 // Five questions. kinds says which sorts the teacher has switched on; words is
@@ -151,4 +264,4 @@ function reward(correct, total) {
   return { radius: 0, shield: 0 };
 }
 
-module.exports = { makeQuiz, grade, reward, parseWords, isCorrect, normalise, seal, unseal, DEFAULT_WORDS, QUESTIONS };
+module.exports = { makeQuiz, grade, reward, parseWords, isCorrect, normalise, seal, unseal, DEFAULT_WORDS, DEFAULT_WORDS_TEXT, QUESTIONS };

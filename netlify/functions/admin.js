@@ -66,6 +66,7 @@ async function loadAll(supabase) {
     students: studentRows.data,
     councils: councilRows.data,
     world: worldState,
+    default_words: require('./_lib/tasks').DEFAULT_WORDS_TEXT.trim(),
     villages: villages.data,
     villagers: villagers.data,
     media: media.data,
