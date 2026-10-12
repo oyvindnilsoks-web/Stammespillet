@@ -130,6 +130,29 @@ export async function cleanseWorld(tribeId) {
   return res.json();
 }
 
+// The tasks that clean the poison: a new quiz, and handing in the answers.
+export async function startTask() {
+  const res = await fetch('/api/world', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'task-start' }),
+  });
+  if (!res.ok) throw new Error('Could not start the tasks.');
+  return res.json();
+}
+
+export async function submitTask(token, answers, fx, fy) {
+  const res = await fetch('/api/world', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'task-submit', token, answers, fx, fy }),
+  });
+  if (!res.ok) throw new Error('Could not check the answers.');
+  return res.json();
+}
+
 // The council of the villages the student lives in, and a way to save one.
 export async function loadCouncils() {
   const res = await fetch('/api/council', { credentials: 'same-origin' });

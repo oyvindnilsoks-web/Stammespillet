@@ -344,6 +344,20 @@ async function worldSet(supabase, body) {
   return json(200, { ok: true, world: worldLib.summary({ ...state, ...patch }) });
 }
 
+// The tasks that clean the poison: which kinds are on, and the word list
+// ("norsk = english", one a line).
+async function taskSet(supabase, body) {
+  const { parseWords } = require('./_lib/tasks');
+  const kinds = { vocab: body.vocab !== false, math: body.math !== false };
+  if (typeof body.vocab !== 'boolean' && body.vocab !== undefined) return json(400, { error: 'Invalid setting' });
+  if (typeof body.math !== 'boolean' && body.math !== undefined) return json(400, { error: 'Invalid setting' });
+  const words = parseWords(body.words);
+  const rows = [{ key: 'task_kinds', value: kinds }, { key: 'task_words', value: words }];
+  const { error } = await supabase.from('settings').upsert(rows);
+  if (error) return json(500, { error: error.message });
+  return json(200, { ok: true, words: words.length, kinds });
+}
+
 async function worldStep(supabase) {
   const result = await worldLib.advance(supabase, new Date(), { force: true });
   return json(200, { ok: true, result });
@@ -370,6 +384,7 @@ const ACTIONS = {
   'clear-council': clearCouncil,
   'world-set': worldSet,
   'world-step': worldStep,
+  'task-set': taskSet,
   'world-reset': worldReset,
   delete: deleteRow,
   'upload-url': uploadUrl,

@@ -236,6 +236,16 @@ function renderWorld() {
         <label><input type="checkbox" data-world-hours ${w.school_hours_only ? 'checked' : ''}> Only in school hours</label>
       </div>
       <p class="muted">Status: ${w.paused ? 'paused' : 'running'}.</p>
+    </section>
+    <section class="admin-settings">
+      <h2>Tasks that clean the poison</h2>
+      <p class="muted">A student who answers the questions cleans the poison around where they stand, and fills the shield of their villages: <strong>5 of 5</strong> right gives a bigger clean and 3 poison steps of shield, <strong>4 of 5</strong> gives 2 steps. A village with no shield left does not keep the poison away. Write your own glossary below, one word a line, <code>norsk = english</code>. Leave it empty to use a short built-in list.</p>
+      <div class="world-controls">
+        <label><input type="checkbox" data-task-vocab ${data.settings?.task_kinds?.vocab === false ? '' : 'checked'}> Glossary questions</label>
+        <label><input type="checkbox" data-task-math ${data.settings?.task_kinds?.math === false ? '' : 'checked'}> Maths questions</label>
+      </div>
+      <textarea data-task-words rows="8" style="width:100%;font-family:monospace" placeholder="hus = house">${h((data.settings?.task_words || []).map((x) => `${x.no} = ${x.en}`).join('\n'))}</textarea>
+      <p><button class="small-btn" data-task-save>Save the tasks</button></p>
     </section>`;
 
   const set = async (body, message) => {
@@ -251,6 +261,20 @@ function renderWorld() {
   app.querySelector('[data-world-speed]').addEventListener('change', (e) => set({ speed_minutes: Number(e.target.value) }, 'Speed changed.'));
   app.querySelector('[data-world-win]').addEventListener('change', (e) => set({ win_percent: Number(e.target.value) }, 'Changed.'));
   app.querySelector('[data-world-hours]').addEventListener('change', (e) => set({ school_hours_only: e.target.checked }, 'Changed.'));
+  app.querySelector('[data-task-save]').addEventListener('click', async () => {
+    try {
+      const r = await api('POST', {
+        action: 'task-set',
+        vocab: app.querySelector('[data-task-vocab]').checked,
+        math: app.querySelector('[data-task-math]').checked,
+        words: app.querySelector('[data-task-words]').value,
+      });
+      await reload();
+      flash(`Saved: ${r.words} word${r.words === 1 ? '' : 's'} in your glossary.`);
+    } catch (err) {
+      if (err.message !== 'Logged out') flash(err.message, true);
+    }
+  });
   app.querySelector('[data-world-step]').addEventListener('click', async () => {
     try {
       const r = await api('POST', { action: 'world-step' });

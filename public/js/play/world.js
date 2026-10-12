@@ -120,6 +120,11 @@ export function createWorldScene(Phaser, ctx) {
       this.cameras.main.setRoundPixels(true);
 
       this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT');
+      this.onTaskKey = (e) => {
+        if ((e.key === 'e' || e.key === 'E') && !e.repeat && !ctx.ui.isOpen()) this.startTask();
+      };
+      document.addEventListener('keydown', this.onTaskKey);
+      this.events.once('shutdown', () => document.removeEventListener('keydown', this.onTaskKey));
       this.input.keyboard.addCapture('UP,DOWN,LEFT,RIGHT,SPACE');
       this.target = null;
       this.input.on('pointerdown', (pointer) => {
@@ -170,13 +175,38 @@ export function createWorldScene(Phaser, ctx) {
         this.textures.get('poison').refresh();
         this.poisonImage.setVisible(true);
       };
-      ctx.onWorld = draw;
+      // A ring round every good village: blue while it has shield and keeps the
+      // poison away, red when it has none. The students see who is in danger.
+      this.shieldRings = this.add.graphics().setDepth(1.6);
+      this.tweens.add({ targets: this.shieldRings, alpha: { from: 0.55, to: 1 }, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      const drawRings = () => {
+        this.shieldRings.clear();
+        const shields = (ctx.world && ctx.world.shields) || {};
+        const radius = (W / MASK_COLS) * 6;
+        for (const sign of this.signs) {
+          if (sign.village.tribe.charter_type === 'shadow') continue;
+          const safe = (shields[sign.village.tribe.id] || 0) > 0;
+          this.shieldRings.lineStyle(4, safe ? 0x9fd8ff : 0xff6a6a, safe ? 0.8 : 0.5);
+          this.shieldRings.strokeCircle(sign.x, sign.y, radius);
+        }
+      };
+      ctx.onWorld = () => {
+        draw();
+        drawRings();
+      };
       draw();
+      drawRings();
       ctx.reloadWorld?.();
       this.poisonTimer = this.time.addEvent({ delay: 60000, loop: true, callback: () => ctx.reloadWorld?.() });
       this.events.once('shutdown', () => {
         ctx.onWorld = null;
       });
+    }
+
+    // Open the tasks for the spot where the figure stands.
+    startTask() {
+      if (this.poisonAt(this.player.x, this.player.y) < 100) return;
+      ctx.openTask(this.player.x / this.worldW, this.player.y / this.worldH);
     }
 
     // How much poison is under a spot of the world: 0 to 255.
@@ -281,8 +311,11 @@ export function createWorldScene(Phaser, ctx) {
         }
       }
       this.shadow.setPosition(p.x, p.y);
-      if (this.poisonAt(p.x, p.y) >= 100) p.setTint(0x9fe08a);
+      const inPoison = this.poisonAt(p.x, p.y) >= 100;
+      if (inPoison) p.setTint(0x9fe08a);
       else p.clearTint();
+      // Standing in poison: a button to clean it by solving tasks.
+      ctx.ui.setPrompt(inPoison && !ctx.ui.isOpen() ? 'You are standing in poison. Press E or click here to clean it with tasks.' : null, () => this.startTask());
       this.animate(time, Boolean(vx || vy), this.terrain(p.x, p.y));
 
       if (time > this.cooldownUntil && !ctx.ui.isOpen()) {

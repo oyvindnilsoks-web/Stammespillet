@@ -21,7 +21,8 @@ async function requireUser(event) {
 }
 
 exports.handler = withSessionRenewal(async (event) => {
-  if (!(await requireUser(event))) return json(401, { error: 'Not logged in' });
+  const user = await requireUser(event);
+  if (!user) return json(401, { error: 'Not logged in' });
 
   try {
     const supabase = getSupabaseAdmin();
@@ -35,6 +36,13 @@ exports.handler = withSessionRenewal(async (event) => {
         body = JSON.parse(event.body || '{}');
       } catch {
         return json(400, { error: 'Invalid JSON' });
+      }
+      if (body.action === 'task-start') {
+        const quiz = await world.startTask(supabase, user);
+        return json(200, quiz ? { ok: true, ...quiz } : { ok: false, reason: 'The teacher has switched the tasks off.' });
+      }
+      if (body.action === 'task-submit') {
+        return json(200, await world.submitTask(supabase, user, body));
       }
       if (body.action !== 'cleanse') return json(400, { error: 'Unknown action' });
       const result = await world.cleanse(supabase, String(body.tribe_id || ''));

@@ -3,6 +3,7 @@ const { verifySessionToken, SESSION_COOKIE, withSessionRenewal } = require('./_l
 const { getSupabaseAdmin } = require('./_lib/supabaseAdmin');
 const { translateToEnglish } = require('./_lib/translate');
 const presence = require('./_lib/presence');
+const { residentVillageIds } = require('./_lib/residents');
 
 // The council of a village. Whoever lives there can see it: the student who
 // started the village, the students who joined it with the group code, and the
@@ -28,21 +29,6 @@ async function requireUser(event) {
   }
 }
 
-// The approved villages the student lives in.
-async function residentVillageIds(supabase, user, approvedIds) {
-  const [made, joined, wrote] = await Promise.all([
-    supabase.from('tribes').select('id').eq('submitted_by', user),
-    supabase.from('village_members').select('tribe_id').eq('user_id', user),
-    supabase.from('characters').select('tribe_id').eq('submitted_by', user),
-  ]);
-  const err = made.error || joined.error || wrote.error;
-  if (err) throw new Error(err.message);
-  const ids = new Set();
-  for (const row of made.data) ids.add(row.id);
-  for (const row of joined.data) ids.add(row.tribe_id);
-  for (const row of wrote.data) ids.add(row.tribe_id);
-  return [...ids].filter((id) => approvedIds.has(id));
-}
 
 // What a student sends, checked: short texts, and allies and enemies chosen from
 // the approved villages (never the village itself, never both at once).

@@ -1,6 +1,6 @@
 import { escapeHtml } from '../translate.js';
 import { createUi } from './ui.js';
-import { loadWorld, cleanseWorld, presenceBeat, presenceState, startCouncilSession } from '../api.js';
+import { loadWorld, cleanseWorld, presenceBeat, presenceState, startCouncilSession, startTask, submitTask } from '../api.js';
 import { renderCouncil } from '../council.js';
 import { ensureFigures, figureSheetUrl } from './figures.js';
 import { mappedVillages, villagersOf, ownVillagers, playerLook, allQuests, noticesFor } from './data.js';
@@ -155,6 +155,23 @@ export function startPlay(container, content, { state, save }) {
       ctx.openCouncil = (tribe, closed) =>
         ui.openCouncil(tribe.name, (host) => renderCouncil(host, { lang: 'en', translation: false, tribeId: tribe.id, live: true }), closed);
 
+      // The tasks that clean the poison where the figure stands.
+      ctx.openTask = async (fx, fy) => {
+        if (ui.isOpen()) return false;
+        let quiz;
+        try {
+          quiz = await startTask();
+        } catch {
+          return false;
+        }
+        if (!quiz.ok) {
+          ui.openNote('No tasks right now', 'The poison', quiz.reason || 'The teacher has switched the tasks off.');
+          return false;
+        }
+        ui.openTask(quiz, (answers) => submitTask(quiz.token, answers, fx, fy), () => ctx.reloadWorld());
+        return true;
+      };
+
       // A solved problem cleans the ground around the villager's village.
       ctx.cleanse = async (tribeId) => {
         try {
@@ -181,7 +198,9 @@ export function startPlay(container, content, { state, save }) {
         const people = villages.flatMap((v) => villagersOf(content, v.tribe.id));
         const met = people.filter((c) => progress.talked.has(c.id)).length;
         const openQuests = ctx.questLog().length;
-        const poison = ctx.world && !ctx.world.paused ? `<span class="play-poison">Poison <strong>${ctx.world.percent}%</strong></span>` : '';
+        const shieldOf = (ctx.world && ctx.world.shields) || {};
+        const ownShield = (content.mine || []).length ? Math.max(...content.mine.map((id) => shieldOf[id] || 0)) : null;
+        const poison = ctx.world && !ctx.world.paused ? `<span class="play-poison">Poison <strong>${ctx.world.percent}%</strong></span>${ownShield === null ? '' : `<span class="play-poison">Shield <strong>${ownShield}</strong></span>`}` : '';
         ui.setHud(`${picker}${poison}<button type="button" class="play-quests-btn" id="play-quests">Problems <strong>${openQuests}</strong></button><span>Villages visited <strong>${visited}/${villages.length}</strong></span><span>Villagers met <strong>${met}/${people.length}</strong></span>`);
       };
 

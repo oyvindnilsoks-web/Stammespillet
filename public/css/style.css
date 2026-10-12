@@ -679,3 +679,9 @@ main.wide { max-width: 1000px; }
 .play-council-bar { position: absolute; left: 0.5rem; top: 0.5rem; z-index: 5; display: flex; gap: 0.7rem; align-items: center; max-width: 60%; padding: 0.35rem 0.7rem; background: rgba(27, 23, 18, 0.92); border: 1px solid var(--accent); border-radius: 8px; font-family: system-ui, sans-serif; font-size: 0.8rem; color: var(--text); }
 .play-council-bar button { font-size: 0.8rem; padding: 0.2rem 0.7rem; }
 .play-poison strong { color: #9fe08a; }
+
+.play-tasks { display: grid; gap: 0.6rem; margin: 0.8rem 0; }
+.task-row { display: grid; grid-template-columns: 5.5rem 1fr 9rem; gap: 0.6rem; align-items: center; }
+.task-prompt { font-weight: bold; }
+.task-result { min-height: 1.4rem; font-style: italic; }
+@media (max-width: 560px) { .task-row { grid-template-columns: 1fr; } }
