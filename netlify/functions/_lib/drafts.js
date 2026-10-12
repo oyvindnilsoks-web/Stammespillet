@@ -1,4 +1,5 @@
 const { getSupabaseAdmin } = require('./supabaseAdmin');
+const { validFigure } = require('./figures');
 
 // Drafts are the Contribute text a student has typed but not sent yet. The
 // table is only reachable with the service role (RLS on, no policies), and
@@ -40,6 +41,7 @@ function cleanDraft(kind, raw) {
     out.map = m && Number.isFinite(x) && Number.isFinite(y) && x >= 0 && x <= 100 && y >= 0 && y <= 100 ? { x, y } : null;
   } else {
     out.tribe_id = typeof raw.tribe_id === 'string' ? raw.tribe_id.slice(0, 100) : '';
+    out.sprite = validFigure(raw.sprite);
   }
   return out;
 }

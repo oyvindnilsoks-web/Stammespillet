@@ -1,4 +1,5 @@
-import { PLAYER_FRAME, heroFrameFor, hashString, mulberry32, villagersOf, mediaOfTribe } from './data.js';
+import { PLAYER_FRAME, figureFor, portraitOf, hashString, mulberry32, villagersOf, mediaOfTribe } from './data.js';
+import { mediaUrl } from '../content.js';
 
 // Inside a village: a little drawn village with houses, trees and a square.
 // The sign in the middle tells about the village, and the villagers the
@@ -125,9 +126,9 @@ export function createVillageScene(Phaser, ctx) {
         const nudge = i >= SLOTS.length ? 0.35 * Math.ceil(i / SLOTS.length) : 0;
         const x = (slot[0] + 0.5 + nudge) * T;
         const y = (slot[1] + 1) * T - 4;
-        const frame = heroFrameFor(villager.id);
+        const frame = figureFor(villager);
         this.add.ellipse(x, y, 30, 10, 0x000000, 0.3).setDepth(4);
-        const npc = this.add.sprite(x, y, 'heroes', frame).setOrigin(0.5, 1).setScale(SCALE).setDepth(5 + y / 1000);
+        const npc = this.add.sprite(x, y, 'figures', frame).setOrigin(0.5, 1).setScale(SCALE).setDepth(5 + y / 1000);
         this.tweens.add({ targets: npc, y: y - 4, duration: 700 + rand() * 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: rand() * 600 });
         const name = this.add
           .text(x, y - T - 6, villager.name, { fontFamily: 'Georgia, serif', fontSize: '14px', color: '#f2e9da', stroke: '#1b1712', strokeThickness: 4 })
@@ -145,7 +146,8 @@ export function createVillageScene(Phaser, ctx) {
           open: () => {
             ctx.progress.talk(villager.id);
             ctx.refreshHud();
-            ctx.ui.openVillager(villager, tribe, frame, () => this.unlock());
+            const drawing = portraitOf(ctx.content, villager.id);
+            ctx.ui.openVillager(villager, tribe, frame, drawing ? mediaUrl(drawing.storage_path) : null, () => this.unlock());
           },
         });
       });

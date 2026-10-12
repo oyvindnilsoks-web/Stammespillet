@@ -2,21 +2,15 @@ import { escapeHtml, translatable } from '../translate.js';
 import { CHARTERS } from '../charters.js';
 import { imageUrl, mediaUrl } from '../content.js';
 import { dialogTopics } from './data.js';
+import { figurePortrait } from './figures.js';
 
 // The parts of the game that are ordinary HTML laid over the picture: the
 // counter at the top, the "press E" hint, and the windows for talking to a
 // villager and reading a village sign. They are HTML, not drawn, so the words
 // can be clicked for a translation and read out, like everywhere else.
 
-const HERO_SHEET = '/assets/game/heroes.png';
-
-// One figure from the heroes sheet as a picture four times its size (12 per
-// row, 16 px each). The sheet is shown at 768 x 704, so the offsets are x4 too.
-export function heroPortrait(frame) {
-  const x = (frame % 12) * 16 * 4;
-  const y = Math.floor(frame / 12) * 16 * 4;
-  return `<span class="play-portrait" style="background-position:-${x}px -${y}px" aria-hidden="true"></span>`;
-}
+// One of the 60 figures as a picture (see figures.js).
+export const heroPortrait = figurePortrait;
 
 const text = (s) => translatable(escapeHtml(String(s)));
 
@@ -73,12 +67,12 @@ export function createUi(wrap) {
     },
 
     // Talking to a villager: ask a question, read the answer.
-    openVillager(villager, tribe, frame, closed) {
+    openVillager(villager, tribe, frame, drawingUrl, closed) {
       const topics = dialogTopics(villager);
       const buttons = topics.map((t, i) => `<button class="play-topic" data-topic="${i}">${escapeHtml(t.question)}</button>`).join('');
       show(
         `<div class="play-window-head">
-           ${heroPortrait(frame)}
+           ${drawingUrl ? `<img class="play-portrait-img" src="${escapeHtml(drawingUrl)}" alt="Drawing of ${escapeHtml(villager.name)}">` : heroPortrait(frame)}
            <div><h2>${escapeHtml(villager.name)}</h2><p class="muted">${escapeHtml(tribe.name)}</p></div>
            <button class="small-btn" data-close>Close</button>
          </div>
@@ -96,6 +90,29 @@ export function createUi(wrap) {
       );
       // Start with the introduction so there is always something to read.
       overlay.querySelector('[data-topic="0"]')?.click();
+    },
+
+    // Walking onto a village on the map: a short introduction and the choice to
+    // go in. A village the player's own is at war with stays closed.
+    openVillageGate(tribe, shieldUrl, summary, villagers, enemy, enter, closed) {
+      show(
+        `<div class="play-window-head">
+           ${shieldUrl ? `<img class="play-shield" src="${escapeHtml(shieldUrl)}" alt="">` : ''}
+           <div><h2>${escapeHtml(tribe.name)}</h2><p class="muted">${villagers} ${villagers === 1 ? 'villager' : 'villagers'} to meet</p></div>
+         </div>
+         ${enemy ? '<p class="play-closed">⚔ Your village is at war with this village. The gate is closed and you cannot go in.</p>' : ''}
+         ${summary ? `<div class="play-answer"><p class="play-text">${text(summary)}</p></div>` : ''}
+         <div class="play-actions">
+           ${enemy ? '' : '<button class="primary-btn" data-enter>Go in</button>'}
+           <button class="small-btn" data-close>${enemy ? 'Turn back' : 'Stay outside'}</button>
+         </div>`,
+        closed
+      );
+      overlay.querySelector('[data-enter]')?.addEventListener('click', () => {
+        onClose = null;
+        close();
+        enter();
+      });
     },
 
     // The sign in the middle of a village: what the students wrote about it.
@@ -163,4 +180,3 @@ export function createUi(wrap) {
   };
 }
 
-export { HERO_SHEET };

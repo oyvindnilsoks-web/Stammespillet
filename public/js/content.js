@@ -11,12 +11,13 @@ export async function loadAllContent() {
   if (!res.ok) {
     throw new Error(res.status === 401 ? 'You are logged out. Log in again.' : 'Could not load the game content.');
   }
-  const { tribes, characters, scenes, media } = await res.json();
+  const { tribes, characters, scenes, media, mine } = await res.json();
   return {
     tribes: new Map(tribes.map((t) => [t.id, t])),
     characters: new Map(characters.map((c) => [c.id, c])),
     scenes: new Map(scenes.map((s) => [s.id, s])),
     media,
+    mine: mine || [],
   };
 }
 

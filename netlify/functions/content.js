@@ -11,7 +11,7 @@ const { getSupabaseAdmin } = require('./_lib/supabaseAdmin');
 const TRIBE_COLUMNS =
   'id, name, territory, resource, culture, relations, image, population, status, charter, charter_type, source_lang, charter_original, created_at, updated_at';
 const CHARACTER_COLUMNS =
-  'id, name, tribe_id, role, strengths, weaknesses, goal, description, image, student_name, status, charter, source_lang, charter_original, created_at, updated_at';
+  'id, name, tribe_id, role, strengths, weaknesses, goal, description, image, sprite, student_name, status, charter, source_lang, charter_original, created_at, updated_at';
 
 function json(statusCode, body) {
   return { statusCode, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' }, body: JSON.stringify(body) };
@@ -29,6 +29,18 @@ function publicRow(row) {
   return { ...row, charter: withoutNames(row.charter), charter_original: withoutNames(row.charter_original) };
 }
 
+// The villages the student wrote or is a group member of: the game needs them
+// to know who the player's village is at war with.
+async function ownVillageIds(supabase, user) {
+  const [made, joined] = await Promise.all([
+    supabase.from('tribes').select('id').eq('submitted_by', user).eq('status', 'approved'),
+    supabase.from('village_members').select('tribe_id').eq('user_id', user),
+  ]);
+  const ids = new Set((made.data || []).map((t) => t.id));
+  for (const row of joined.data || []) ids.add(row.tribe_id);
+  return [...ids];
+}
+
 async function requireUser(event) {
   const token = parseCookies(event)[SESSION_COOKIE];
   if (!token) return null;
@@ -41,7 +53,8 @@ async function requireUser(event) {
 
 exports.handler = withSessionRenewal(async (event) => {
   if (event.httpMethod !== 'GET') return json(405, { error: 'Method not allowed' });
-  if (!(await requireUser(event))) return json(401, { error: 'Not logged in' });
+  const user = await requireUser(event);
+  if (!user) return json(401, { error: 'Not logged in' });
 
   try {
     const supabase = getSupabaseAdmin();
@@ -66,7 +79,11 @@ exports.handler = withSessionRenewal(async (event) => {
       (a, b) => (a.sort_order || 0) - (b.sort_order || 0) || String(a.created_at).localeCompare(String(b.created_at))
     );
 
+    const approvedIds = new Set(tribeIds);
+    const mine = (await ownVillageIds(supabase, user)).filter((id) => approvedIds.has(id));
+
     return json(200, {
+      mine,
       tribes: tribes.data.map(publicRow),
       characters: characters.data.map(publicRow),
       scenes: scenes.data,

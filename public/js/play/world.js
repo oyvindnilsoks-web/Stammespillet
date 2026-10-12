@@ -1,5 +1,6 @@
-import { buildMask, connectVillages, isBlocked } from './mask.js';
-import { PLAYER_FRAME } from './data.js';
+import { buildMask, connectVillages, terrainAt } from './mask.js';
+import { PLAYER_FRAME, shieldOf, isEnemy, villagersOf } from './data.js';
+import { mediaUrl } from '../content.js';
 
 // The world map: the painted map is the ground, a small figure walks on it,
 // and every village the students placed on the map has a sign. Walking into a
@@ -8,7 +9,9 @@ import { PLAYER_FRAME } from './data.js';
 const MAP_W = 1400; // size of the picture of the map
 const MAP_H = 1059;
 export const WORLD_SCALE = 2;
-const SPEED = 300; // pixels per second
+const SPEED = 300; // pixels per second on land
+const SWIM_SPEED = 190;
+const CLIMB_SPEED = 150;
 const ENTER_DISTANCE = 56;
 const SIGN_SCALE = 3;
 
@@ -55,6 +58,28 @@ export function createWorldScene(Phaser, ctx) {
         return { village: v, x, y, label, tick };
       });
 
+      // The shield of a village, when the teacher has added one, above its sign.
+      const shields = this.signs
+        .map((sign) => ({ sign, media: shieldOf(ctx.content, sign.village.tribe.id) }))
+        .filter((s) => s.media);
+      if (shields.length) {
+        this.load.crossOrigin = 'anonymous';
+        for (const { sign, media } of shields) {
+          const key = 'shield_' + sign.village.tribe.id;
+          if (!this.textures.exists(key)) this.load.image(key, mediaUrl(media.storage_path));
+        }
+        this.load.once('complete', () => {
+          for (const { sign } of shields) {
+            const key = 'shield_' + sign.village.tribe.id;
+            if (!this.textures.exists(key)) continue;
+            const image = this.add.image(sign.x, sign.y - 118, key).setDepth(4);
+            image.setScale(60 / Math.max(image.width, image.height));
+            sign.tick.setY(sign.y - 150);
+          }
+        });
+        this.load.start();
+      }
+
       // The figure: starts where it stopped last time, or in the middle of the map.
       let sx = (ctx.start.x + 0.5) * (W / this.mask.cols);
       let sy = (ctx.start.y + 0.5) * (H / this.mask.rows);
@@ -81,6 +106,9 @@ export function createWorldScene(Phaser, ctx) {
       }
       this.shadow = this.add.ellipse(sx, sy, 28, 10, 0x000000, 0.35).setDepth(5);
       this.player = this.add.sprite(sx, sy, 'heroes', PLAYER_FRAME).setOrigin(0.5, 1).setScale(3).setDepth(6);
+      // Rings on the water around the swimming figure.
+      this.rings = [0, 1].map(() => this.add.ellipse(sx, sy, 40, 40, 0xdff2f5, 0).setStrokeStyle(3, 0xe8f6f8).setDepth(5.5).setVisible(false));
+      this.wasSwimming = false;
 
       this.cameras.main.setBounds(0, 0, W, H);
       this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
@@ -105,8 +133,53 @@ export function createWorldScene(Phaser, ctx) {
       ctx.refreshHud();
     }
 
+    // 'land', 'sea', 'mountain' or 'frame' under a spot of the world.
+    terrain(x, y) {
+      return terrainAt(this.mask, Math.floor((x / this.worldW) * this.mask.cols), Math.floor((y / this.worldH) * this.mask.rows));
+    }
+
+    // Anywhere but the edge of the map: the sea can be swum and the mountains climbed.
     walkable(x, y) {
-      return !isBlocked(this.mask, Math.floor((x / this.worldW) * this.mask.cols), Math.floor((y / this.worldH) * this.mask.rows));
+      return this.terrain(x, y) !== 'frame';
+    }
+
+    // Swimming: only the head and shoulders above the water, arms working, rings
+    // spreading. Climbing: leaning in, pulling up hand over hand. On land: a hop.
+    animate(time, moving, where) {
+      const p = this.player;
+      const swimming = where === 'sea';
+      const climbing = where === 'mountain';
+      if (swimming !== this.wasSwimming) {
+        if (swimming) p.setCrop(0, 0, 16, 10);
+        else p.setCrop();
+        this.wasSwimming = swimming;
+      }
+      this.shadow.setVisible(!swimming);
+      for (const ring of this.rings) ring.setVisible(swimming);
+      p.setScale(3, 3);
+
+      if (swimming) {
+        const t = time / 260;
+        p.setAngle(Math.sin(t) * 7);
+        this.rings.forEach((ring, i) => {
+          const phase = ((time / 900 + i / this.rings.length) % 1);
+          ring.setPosition(p.x, p.y - 2);
+          ring.setScale(0.7 + phase * 1.1, (0.7 + phase * 1.1) * 0.4);
+          ring.setAlpha(0.55 * (1 - phase));
+        });
+      } else if (climbing) {
+        if (moving) {
+          const t = time / 210;
+          p.setAngle(Math.sin(t) * 9 + (p.flipX ? 5 : -5)); // leaning into the slope, left and right as the hands change
+          p.setScale(3 + Math.sin(t) * 0.15, 3 - Math.sin(t + 1) * 0.18); // stretching up, pulling in
+        } else {
+          p.setAngle(p.flipX ? 5 : -5);
+        }
+      } else if (moving) {
+        p.setAngle(Math.sin(time / 70) * 4);
+      } else {
+        p.setAngle(0);
+      }
     }
 
     update(time, delta) {
@@ -129,9 +202,10 @@ export function createWorldScene(Phaser, ctx) {
         }
       }
 
+      const where = this.terrain(p.x, p.y);
       if (vx || vy) {
         const length = Math.hypot(vx, vy) || 1;
-        const step = SPEED * dt;
+        const step = (where === 'sea' ? SWIM_SPEED : where === 'mountain' ? CLIMB_SPEED : SPEED) * dt;
         const nx = p.x + (vx / length) * step;
         const ny = p.y + (vy / length) * step;
         const before = { x: p.x, y: p.y };
@@ -146,21 +220,44 @@ export function createWorldScene(Phaser, ctx) {
         } else {
           this.stuck = 0;
         }
-        // A little hop while walking.
-        p.setAngle(Math.sin(time / 70) * 4);
-      } else {
-        p.setAngle(0);
       }
       this.shadow.setPosition(p.x, p.y);
+      this.animate(time, Boolean(vx || vy), this.terrain(p.x, p.y));
 
-      if (time > this.cooldownUntil) {
+      if (time > this.cooldownUntil && !ctx.ui.isOpen()) {
         for (const sign of this.signs) {
           if (Phaser.Math.Distance.Between(p.x, p.y, sign.x, sign.y) < ENTER_DISTANCE) {
-            this.enter(sign);
+            this.ask(sign);
             return;
           }
         }
       }
+    }
+
+    // A window about the village. Going in is the player's choice, and not
+    // possible for a village the player's own village is at war with.
+    ask(sign) {
+      const tribe = sign.village.tribe;
+      const shield = shieldOf(ctx.content, tribe.id);
+      const charter = tribe.charter || {};
+      const summary = charter.main_resource || charter.place || tribe.resource || '';
+      const enemy = isEnemy(ctx.content, tribe);
+      this.target = null;
+      const back = () => {
+        // Step away from the sign so the window does not open again at once.
+        const spot = this.walkable(sign.x, sign.y + 110) ? { x: sign.x, y: sign.y + 110 } : { x: this.player.x, y: this.player.y };
+        this.player.setPosition(spot.x, spot.y);
+        this.cooldownUntil = this.time.now + 1500;
+      };
+      ctx.ui.openVillageGate(
+        tribe,
+        shield ? mediaUrl(shield.storage_path) : null,
+        summary,
+        villagersOf(ctx.content, tribe.id).length,
+        enemy,
+        () => this.enter(sign),
+        back
+      );
     }
 
     enter(sign) {

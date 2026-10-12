@@ -1,5 +1,6 @@
-import { loadSubmissions, sendSubmission, joinVillage, addVillageImage, deleteVillageImage, loadDrafts, putDraft, removeDraft } from './api.js';
+import { loadSubmissions, sendSubmission, joinVillage, addVillageImage, addVillagerImage, deleteVillageImage, loadDrafts, putDraft, removeDraft } from './api.js';
 import { mediaUrl } from './content.js';
+import { figurePortrait, ensureFigures, FIGURE_COUNT } from './play/figures.js';
 import { CHARTERS, allFields } from './charters.js';
 import { escapeHtml } from './translate.js';
 
@@ -80,6 +81,15 @@ const TEXT = {
     picNoFile: 'Choose a picture first.',
     picCannotRead: 'This picture could not be read. Try a JPEG or PNG.',
     picLocked: 'The teacher has looked at this village, so pictures can no longer be changed.',
+    figureTitle: 'Your villager in the game',
+    figureHelp: 'Choose the figure that stands for your villager on the map. If you do not choose, the game picks one for you.',
+    figureLabel: 'Figure',
+    portraitTitle: 'A drawing of your villager',
+    portraitHelp: 'Draw your villager on paper and take a picture of it. Everyone sees the drawing when the teacher has approved your villager.',
+    portraitFirst: 'Press Send to teacher first. Then you can add the drawing here.',
+    portraitAdd: 'Add drawing',
+    portraitReplace: 'Replace drawing',
+    portraitLocked: 'The teacher has looked at this villager, so the drawing can no longer be changed.',
     draft: {
       saving: 'Saving…',
       saved: (time) => `✓ Saved ${time}`,
@@ -146,6 +156,15 @@ const TEXT = {
     picNoFile: 'Velg et bilde først.',
     picCannotRead: 'Bildet kunne ikke leses. Prøv en JPEG eller PNG.',
     picLocked: 'Læreren har sett på landsbyen, så bildene kan ikke endres lenger.',
+    figureTitle: 'Innbyggeren i spillet',
+    figureHelp: 'Velg figuren som står for innbyggeren din på kartet. Velger du ikke, velger spillet en for deg.',
+    figureLabel: 'Figur',
+    portraitTitle: 'En tegning av innbyggeren',
+    portraitHelp: 'Tegn innbyggeren på papir og ta bilde av tegningen. Alle ser tegningen når læreren har godkjent innbyggeren.',
+    portraitFirst: 'Trykk først Send til læreren. Da kan du legge til tegningen her.',
+    portraitAdd: 'Legg til tegning',
+    portraitReplace: 'Bytt tegning',
+    portraitLocked: 'Læreren har sett på innbyggeren, så tegningen kan ikke endres lenger.',
     draft: {
       saving: 'Lagrer…',
       saved: (time) => `✓ Lagret ${time}`,
@@ -261,7 +280,7 @@ function removeLocal(kind, ref) {
 }
 
 function normalizeForm(kind, raw) {
-  const base = kind === 'village' ? { type: 'village', charter: {}, map: null } : { type: 'villager', charter: {}, tribe_id: '' };
+  const base = kind === 'village' ? { type: 'village', charter: {}, map: null } : { type: 'villager', charter: {}, tribe_id: '', sprite: null };
   const out = { ...base, lang, ...(raw && typeof raw === 'object' ? raw : {}) };
   out.charter = { ...(out.charter || {}) };
   out.lang = out.lang === 'no' ? 'no' : 'en';
@@ -461,7 +480,7 @@ function formFromSubmission(kind, sub) {
       map: Number.isFinite(t.map_x) && Number.isFinite(t.map_y) ? { x: t.map_x, y: t.map_y } : null,
     };
   }
-  return { type: 'villager', lang: formLang, charter, tribe_id: sub.tribe_id || '' };
+  return { type: 'villager', lang: formLang, charter, tribe_id: sub.tribe_id || '', sprite: Number.isInteger(sub.sprite) ? sub.sprite : null };
 }
 
 function startEditing(kind, sub) {
@@ -650,7 +669,7 @@ function renderForm() {
     ${restored[kind] ? `<p class="restored-note">${t.restored(sendLabel)}</p>` : ''}
     ${top}
     ${renderSections(kind)}
-    ${kind === 'village' ? renderPictures() : ''}
+    ${kind === 'village' ? renderPictures() : renderVillagerExtras()}
     <div class="submit-row">
       <button class="choice-btn" id="send-btn" ${data.open ? '' : 'disabled'}>${sendLabel}</button>
       <span id="send-status" class="muted" role="status"></span>
@@ -700,6 +719,21 @@ function wireForm(kind) {
   formEl.querySelector('#join-btn')?.addEventListener('click', joinGroup);
   formEl.querySelector('#pic-add-btn')?.addEventListener('click', addPicture);
   formEl.querySelectorAll('[data-delete-pic]').forEach((btn) => btn.addEventListener('click', () => deletePicture(btn.dataset.deletePic)));
+  formEl.querySelector('#portrait-add-btn')?.addEventListener('click', addPortrait);
+  formEl.querySelectorAll('[data-delete-portrait]').forEach((btn) => btn.addEventListener('click', () => deletePicture(btn.dataset.deletePortrait)));
+  formEl.querySelectorAll('[data-figure]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const frame = Number(btn.dataset.figure);
+      // Pressing the figure that is chosen again takes the choice away.
+      form.villager.sprite = form.villager.sprite === frame ? null : frame;
+      saveDraft('villager');
+      formEl.querySelectorAll('[data-figure]').forEach((b) => {
+        const on = form.villager.sprite === Number(b.dataset.figure);
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', String(on));
+      });
+    })
+  );
 }
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'];
@@ -799,17 +833,86 @@ async function addPicture() {
   }
 }
 
+// Deletes a village picture, or the drawing of a villager: the same call, and
+// the message goes where the picture was (on the village or the villager form).
 async function deletePicture(id) {
   if (!window.confirm(L().picDeleteAsk)) return;
+  const messageEl = () => root.querySelector('#pic-status') || root.querySelector('#portrait-status');
   try {
     await deleteVillageImage(id);
     data = await loadSubmissions();
     renderPage();
-    root.querySelector('.pictures')?.scrollIntoView({ block: 'center' });
-    root.querySelector('#pic-status').textContent = L().picDeleted;
+    root.querySelector('.pictures, .portrait-section')?.scrollIntoView({ block: 'center' });
+    const el = messageEl();
+    if (el) el.textContent = L().picDeleted;
   } catch (err) {
-    const statusEl = root.querySelector('#pic-status');
-    if (statusEl) statusEl.textContent = errorText(err);
+    const el = messageEl();
+    if (el) el.textContent = errorText(err);
+  }
+}
+
+// The last parts of the villager form: which figure the villager is in the
+// game, and a drawing of them. Both are shown in the game once the teacher has
+// approved the villager.
+function renderVillagerExtras() {
+  const t = L();
+  const base = CHARTERS.villager.sections.length;
+  const head = (offset, title) =>
+    `<div class="charter-head"><span class="charter-num">${ROMAN[base + offset] || ''}</span><div><h3>${title}</h3></div></div>`;
+
+  const chosen = form.villager.sprite;
+  const figures = Array.from({ length: FIGURE_COUNT }, (_, i) => i).map(
+    (frame) =>
+      `<button type="button" class="figure-btn ${chosen === frame ? 'active' : ''}" data-figure="${frame}" aria-pressed="${chosen === frame}" aria-label="${t.figureLabel} ${frame + 1}">${figurePortrait(frame)}</button>`
+  ).join('');
+  const figureSection = `<section class="charter-section figures">${head(0, t.figureTitle)}<p class="charter-lede">${t.figureHelp}</p><div class="figure-grid">${figures}</div></section>`;
+
+  const sub = editing.villager;
+  let body;
+  if (!sub) {
+    body = `<p class="muted">${t.portraitFirst}</p>`;
+  } else {
+    const live = data.mine.villagers.find((v) => v.id === sub.id) || sub;
+    const canEdit = live.status === 'pending' && data.open;
+    const drawing = (data.mine.media || []).find((m) => m.character_id === sub.id);
+    const picture = drawing
+      ? `<figure class="pic portrait"><img src="${escapeHtml(mediaUrl(drawing.storage_path))}" alt="" loading="lazy">${
+          canEdit ? `<button class="small-btn danger" type="button" data-delete-portrait="${escapeHtml(drawing.id)}">${t.picDelete}</button>` : ''
+        }</figure>`
+      : '';
+    const add = canEdit
+      ? `<div class="pic-add">
+          <input id="portrait-file" type="file" accept="image/*" aria-label="${t.picChoose}">
+          <button class="small-btn" id="portrait-add-btn" type="button">${drawing ? t.portraitReplace : t.portraitAdd}</button>
+          <span id="portrait-status" class="muted" role="status"></span>
+        </div>`
+      : `<p class="muted">${t.portraitLocked}</p>`;
+    body = `<p class="charter-lede">${t.portraitHelp}</p>${picture}${add}`;
+  }
+  const drawingSection = `<section class="charter-section portrait-section">${head(1, t.portraitTitle)}${body}</section>`;
+  return figureSection + drawingSection;
+}
+
+async function addPortrait() {
+  const statusEl = root.querySelector('#portrait-status');
+  const file = root.querySelector('#portrait-file').files[0];
+  if (!file) {
+    statusEl.textContent = L().picNoFile;
+    return;
+  }
+  const button = root.querySelector('#portrait-add-btn');
+  button.disabled = true;
+  statusEl.textContent = L().picAdding;
+  try {
+    const { mime, data: encoded } = await prepareImage(file);
+    await addVillagerImage({ character_id: editing.villager.id, mime, data: encoded });
+    data = await loadSubmissions();
+    renderPage();
+    root.querySelector('.portrait-section')?.scrollIntoView({ block: 'center' });
+    root.querySelector('#portrait-status').textContent = L().picAdded;
+  } catch (err) {
+    button.disabled = false;
+    statusEl.textContent = err.code === 'unreadable' ? L().picCannotRead : errorText(err);
   }
 }
 
@@ -874,7 +977,10 @@ async function send(kind) {
     }
     const payload = { type: f.type, lang, id: editing[kind]?.id, charter };
     if (kind === 'village') payload.map = f.map;
-    else payload.tribe_id = f.tribe_id;
+    else {
+      payload.tribe_id = f.tribe_id;
+      payload.sprite = f.sprite ?? null;
+    }
     const { id } = await sendSubmission(payload);
 
     // Only after the server has confirmed the submission is the unsent copy
@@ -954,6 +1060,7 @@ export async function renderContribute(container) {
   lang = savedLang();
   root.innerHTML = `<p>${L().loading}</p>`;
   try {
+    await ensureFigures();
     data = await loadSubmissions();
   } catch (err) {
     root.innerHTML = `<p class="error">${escapeHtml(err.message)}</p>`;

@@ -1,4 +1,5 @@
 import { createUi } from './ui.js';
+import { ensureFigures, figureSheetUrl } from './figures.js';
 import { mappedVillages, villagersOf } from './data.js';
 import { createWorldScene } from './world.js';
 import { createVillageScene } from './village.js';
@@ -92,11 +93,11 @@ export function startPlay(container, content, { state, save }) {
   container.innerHTML = `
     <div class="play">
       <div class="play-wrap" id="play-wrap"><div id="play-canvas"><p class="muted play-loading">Loading the world…</p></div></div>
-      <p class="muted play-help">Walk with the arrow keys or WASD, or tap where you want to go. Walk into a village sign to go inside. Press E to talk to a villager or read a sign. Walk down and out of a village to go back to the map.</p>
+      <p class="muted play-help">Walk with the arrow keys or WASD, or tap where you want to go. You can swim across the sea and climb the mountains, but slowly. Walk onto a village to go inside. Press E to talk to a villager or read a sign. Walk down and out of a village to go back to the map.</p>
     </div>`;
 
-  loadPhaser()
-    .then((Phaser) => {
+  Promise.all([loadPhaser(), ensureFigures()])
+    .then(([Phaser]) => {
       if (stopped) return;
       const wrap = container.querySelector('#play-wrap');
       ui = createUi(wrap);
@@ -119,6 +120,7 @@ export function startPlay(container, content, { state, save }) {
           this.load.image('map', '/assets/images/lore/overview-map.jpg');
           this.load.spritesheet('town', '/assets/game/town.png', { frameWidth: 16, frameHeight: 16 });
           this.load.spritesheet('heroes', '/assets/game/heroes.png', { frameWidth: 16, frameHeight: 16 });
+          this.load.spritesheet('figures', figureSheetUrl(), { frameWidth: 16, frameHeight: 16 });
         }
         create() {
           this.scene.start('World');

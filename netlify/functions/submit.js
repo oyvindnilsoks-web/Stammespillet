@@ -3,6 +3,7 @@ const { parseCookies } = require('./_lib/cookies');
 const { verifySessionToken, SESSION_COOKIE, withSessionRenewal } = require('./_lib/session');
 const { getSupabaseAdmin } = require('./_lib/supabaseAdmin');
 const { translateToEnglish } = require('./_lib/translate');
+const { validFigure } = require('./_lib/figures');
 
 const TYPES = ['village', 'shadow', 'villager'];
 const MAX_KEYS = 60;
@@ -149,9 +150,24 @@ async function villageForPictures(supabase, user, id) {
   return { tribe };
 }
 
+// A villager the student may give a portrait: their own, still waiting for the teacher.
+async function villagerForPicture(supabase, user, id) {
+  const { data: villager, error } = await supabase.from('characters').select('id, status, submitted_by').eq('id', String(id || '')).maybeSingle();
+  if (error) return { response: json(500, { error: error.message }) };
+  if (!villager || villager.submitted_by !== user) return { response: json(404, { error: 'Submission not found' }) };
+  if (villager.status !== 'pending') return { response: json(409, { error: 'Your villager has already been reviewed by your teacher.' }) };
+  return { villager };
+}
+
+const MEDIA_ROW = 'id, tribe_id, character_id, kind, title, storage_path';
+
 async function handleAddImage(supabase, user, body) {
-  const { tribe, response } = await villageForPictures(supabase, user, body.tribe_id);
-  if (response) return response;
+  // A picture goes to a village (up to 8) or is the portrait of a villager (one).
+  const forVillager = Boolean(body.character_id);
+  const found = forVillager ? await villagerForPicture(supabase, user, body.character_id) : await villageForPictures(supabase, user, body.tribe_id);
+  if (found.response) return found.response;
+  const tribe = found.tribe;
+  const villager = found.villager;
 
   const type = String(body.mime || '');
   if (!IMAGE_TYPES[type]) return json(400, { error: 'Use a JPEG, PNG or WebP picture.' });
@@ -160,10 +176,12 @@ async function handleAddImage(supabase, user, body) {
   if (buf.length > MAX_IMAGE_BYTES) return json(413, { error: 'The picture is too big.' });
   if (!buf.length || !looksLike(type, buf)) return json(400, { error: 'This file is not a picture.' });
 
-  const { count, error: countErr } = await supabase.from('media').select('id', { count: 'exact', head: true }).eq('tribe_id', tribe.id).eq('kind', 'image');
-  if (countErr) return json(500, { error: countErr.message });
-  if (count >= MAX_IMAGES_PER_VILLAGE) {
-    return json(409, { error: `This village already has ${MAX_IMAGES_PER_VILLAGE} pictures. Delete one first.` });
+  if (!forVillager) {
+    const { count, error: countErr } = await supabase.from('media').select('id', { count: 'exact', head: true }).eq('tribe_id', tribe.id).eq('kind', 'image');
+    if (countErr) return json(500, { error: countErr.message });
+    if (count >= MAX_IMAGES_PER_VILLAGE) {
+      return json(409, { error: `This village already has ${MAX_IMAGES_PER_VILLAGE} pictures. Delete one first.` });
+    }
   }
 
   const path = `${new Date().getFullYear()}/${crypto.randomUUID()}-picture.${IMAGE_TYPES[type]}`;
@@ -171,15 +189,24 @@ async function handleAddImage(supabase, user, body) {
   if (uploadErr) return json(500, { error: uploadErr.message });
 
   const caption = typeof body.caption === 'string' ? body.caption.trim().slice(0, 120) : '';
-  const { data: row, error: insertErr } = await supabase
-    .from('media')
-    .insert({ tribe_id: tribe.id, kind: 'image', title: caption, storage_path: path, mime_type: type })
-    .select('id, tribe_id, kind, title, storage_path')
-    .single();
+  // A villager has one portrait: a new one replaces the old one.
+  let oldPortraits = [];
+  if (forVillager) {
+    const { data: existing } = await supabase.from('media').select('id, storage_path').eq('character_id', villager.id);
+    oldPortraits = existing || [];
+  }
+  const record = forVillager
+    ? { character_id: villager.id, kind: 'drawing', title: caption, storage_path: path, mime_type: type }
+    : { tribe_id: tribe.id, kind: 'image', title: caption, storage_path: path, mime_type: type };
+  const { data: row, error: insertErr } = await supabase.from('media').insert(record).select(MEDIA_ROW).single();
   if (insertErr) {
     // No row, so the file would never be found again: take it away.
     await supabase.storage.from(BUCKET).remove([path]);
     return json(500, { error: insertErr.message });
+  }
+  for (const old of oldPortraits) {
+    await supabase.from('media').delete().eq('id', old.id);
+    if (old.storage_path) await supabase.storage.from(BUCKET).remove([old.storage_path]);
   }
   return json(200, { ok: true, media: row });
 }
@@ -187,13 +214,15 @@ async function handleAddImage(supabase, user, body) {
 async function handleDeleteImage(supabase, user, body) {
   const { data: item, error } = await supabase
     .from('media')
-    .select('id, tribe_id, kind, storage_path')
+    .select('id, tribe_id, character_id, kind, storage_path')
     .eq('id', String(body.id || ''))
     .maybeSingle();
   if (error) return json(500, { error: error.message });
-  if (!item || !item.tribe_id) return json(404, { error: 'Picture not found' });
+  if (!item || (!item.tribe_id && !item.character_id)) return json(404, { error: 'Picture not found' });
 
-  const { response } = await villageForPictures(supabase, user, item.tribe_id);
+  const { response } = item.tribe_id
+    ? await villageForPictures(supabase, user, item.tribe_id)
+    : await villagerForPicture(supabase, user, item.character_id);
   if (response) return response;
 
   const { error: delErr } = await supabase.from('media').delete().eq('id', item.id);
@@ -209,24 +238,24 @@ async function handleGet(supabase, user) {
     myVillages(supabase, user),
     supabase
       .from('characters')
-      .select('id, name, status, charter, charter_original, source_lang, tribe_id, updated_at')
+      .select('id, name, status, charter, charter_original, source_lang, tribe_id, sprite, updated_at')
       .eq('submitted_by', user)
       .order('created_at'),
   ]);
   const err = villagesRes.error || myVillagesRes.error || myVillagersRes.error;
   if (err) return json(500, { error: err.message });
 
-  // The pictures students have added to their villages, for the Pictures part of the form.
+  // The pictures students have added to their villages and villagers, for the
+  // Pictures part of the forms.
   let media = [];
   const villageIds = myVillagesRes.data.map((v) => v.id);
-  if (villageIds.length) {
-    const { data: mediaRows, error: mediaErr } = await supabase
-      .from('media')
-      .select('id, tribe_id, kind, title, storage_path')
-      .in('tribe_id', villageIds)
-      .order('created_at');
+  const villagerIds = myVillagersRes.data.map((v) => v.id);
+  const MEDIA_COLUMNS = 'id, tribe_id, character_id, kind, title, storage_path';
+  for (const [column, ids] of [['tribe_id', villageIds], ['character_id', villagerIds]]) {
+    if (!ids.length) continue;
+    const { data: mediaRows, error: mediaErr } = await supabase.from('media').select(MEDIA_COLUMNS).in(column, ids).order('created_at');
     if (mediaErr) return json(500, { error: mediaErr.message });
-    media = mediaRows;
+    media = media.concat(mediaRows);
   }
 
   return json(200, {
@@ -307,6 +336,7 @@ async function saveVillager(supabase, user, body, charter, name, extra) {
     charter_original: extra.original,
     source_lang: extra.lang,
     tribe_id: tribe.id,
+    sprite: validFigure(body.sprite),
     role: (charter.role || '').slice(0, 120),
     goal: charter.goal || '',
     description: [charter.appearance, charter.personality].filter(Boolean).join('\n\n'),

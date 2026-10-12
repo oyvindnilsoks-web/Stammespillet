@@ -118,6 +118,11 @@ export function addVillageImage({ tribe_id, caption, mime, data }) {
   return villageAction({ action: 'add-image', tribe_id, caption, mime, data });
 }
 
+// The drawing of a villager: one picture, a new one replaces the old.
+export function addVillagerImage({ character_id, mime, data }) {
+  return villageAction({ action: 'add-image', character_id, mime, data });
+}
+
 export function deleteVillageImage(id) {
   return villageAction({ action: 'delete-image', id });
 }

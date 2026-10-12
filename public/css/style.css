@@ -641,3 +641,20 @@ main.wide { max-width: 1000px; }
 .play-song { display: grid; gap: 0.35rem; margin-bottom: 0.6rem; }
 .play-song audio { width: 100%; }
 .play-lyrics { font-style: italic; }
+
+/* ---------- Villager figure and drawing, the portrait in the game ---------- */
+
+.figure-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+.figure-btn { padding: 0.25rem; background: var(--bg); border: 2px solid var(--muted); border-radius: 10px; line-height: 0; cursor: pointer; }
+.figure-btn:hover { border-color: var(--accent-hover); background: var(--bg); }
+.figure-btn.active { border-color: var(--accent); background: var(--panel); box-shadow: 0 0 0 2px var(--accent); }
+.figure-btn .play-portrait { width: 64px; height: 64px; border-radius: 6px; }
+.play-portrait.fig { background-image: var(--figure-sheet); background-size: 640px 384px; }
+.figure-grid { max-height: 26rem; overflow-y: auto; }
+.pic.portrait { margin: 0.6rem 0; max-width: 220px; }
+.pic.portrait img { height: auto; max-height: 220px; object-fit: contain; }
+.play-portrait-img { flex: none; width: 96px; height: 96px; object-fit: cover; border-radius: 8px; background: var(--bg); }
+
+/* The window when walking onto a village on the map */
+.play-closed { margin: 0; padding: 0.6rem 0.8rem; border-radius: 6px; background: rgba(160, 50, 40, 0.25); border: 1px solid rgba(200, 90, 70, 0.6); }
+.play-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; justify-content: flex-end; }

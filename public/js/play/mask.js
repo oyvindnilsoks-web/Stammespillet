@@ -25,6 +25,7 @@ export function buildMask(image) {
   const px = ctx.getImageData(0, 0, cols, rows).data;
 
   const blocked = new Uint8Array(cols * rows);
+  const wet = new Uint8Array(cols * rows); // 1 where the blocked ground is sea, 0 where it is mountain
   for (let i = 0; i < cols * rows; i++) {
     const r = px[i * 4];
     const g = px[i * 4 + 1];
@@ -32,6 +33,8 @@ export function buildMask(image) {
     const luma = 0.3 * r + 0.59 * g + 0.11 * b;
     // Sea and snow: not much yellow (red well above blue), and not dark forest.
     blocked[i] = r - b < 45 && luma >= 105 ? 1 : 0;
+    // The sea is a little blue, the snow on the mountains a little warm.
+    wet[i] = r - b < 28 ? 1 : 0;
   }
 
   // The decorative frame around the map is never walkable.
@@ -42,7 +45,7 @@ export function buildMask(image) {
     }
   }
 
-  const mask = { cols, rows, blocked };
+  const mask = { cols, rows, blocked, wet };
   smooth(mask);
   return mask;
 }
@@ -76,6 +79,17 @@ function smooth(mask, passes = 2) {
     }
     mask.blocked = next;
   }
+}
+
+// What is under the figure: 'land', 'sea' (swim), 'mountain' (climb) or 'frame'
+// (the edge of the map, where nothing can go). Everything but the frame can be
+// crossed, only more slowly: the sea by swimming and the mountains by climbing.
+export const FRAME_CELLS = 3;
+export function terrainAt(mask, cx, cy) {
+  if (cx < FRAME_CELLS || cy < FRAME_CELLS || cx >= mask.cols - FRAME_CELLS || cy >= mask.rows - FRAME_CELLS) return 'frame';
+  const i = cy * mask.cols + cx;
+  if (!mask.blocked[i]) return 'land';
+  return mask.wet[i] ? 'sea' : 'mountain';
 }
 
 export function isBlocked(mask, cx, cy) {
