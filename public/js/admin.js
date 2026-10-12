@@ -191,6 +191,7 @@ function renderNav() {
   nav.innerHTML = `
     <button data-view="villages" class="${view === 'villages' ? 'active' : ''}">Villages${count(pendingVillages)}</button>
     <button data-view="villagers" class="${view === 'villagers' ? 'active' : ''}">Villagers${count(pendingVillagers)}</button>
+    <button data-view="councils" class="${view === 'councils' ? 'active' : ''}">Councils</button>
     <button data-view="students" class="${view === 'students' ? 'active' : ''}">Students</button>
     <button data-view="settings" class="${view === 'settings' ? 'active' : ''}">Settings</button>
     <a href="#" id="admin-logout">Log out</a>`;
@@ -205,6 +206,44 @@ function renderNav() {
     e.preventDefault();
     logout();
   });
+}
+
+// What the villages have written in their councils, with a way to clear one.
+function renderCouncils() {
+  const nameOf = (id) => data.villages.find((v) => v.id === id)?.name || id;
+  const cards = (data.councils || [])
+    .map((c) => {
+      const row = (label, value) => (value ? `<p><strong>${label}:</strong> ${h(value)}</p>` : '');
+      const original = c.source_lang === 'no' && c.original ? `<details><summary>Norwegian original</summary>${row('Rule', c.original.government)}${row('God', c.original.god)}${row('Laws', c.original.laws)}</details>` : '';
+      return `<article class="admin-card">
+        <h3>${h(nameOf(c.tribe_id))}</h3>
+        ${row('Rule', c.government)}${row('God', c.god)}${row('Laws', c.laws)}
+        ${row('Allies', (c.allies || []).map(nameOf).join(', '))}${row('At war with', (c.enemies || []).map(nameOf).join(', '))}
+        ${original}
+        <button class="small-btn danger" data-clear-council="${h(c.tribe_id)}">Clear</button>
+      </article>`;
+    })
+    .join('');
+  app.innerHTML = `
+    <p id="admin-flash" class="admin-flash" hidden></p>
+    <section class="admin-settings">
+      <h2>Councils</h2>
+      <p class="muted">What each village's students have decided: how it is ruled, its god, its laws, and its allies and enemies. <strong>Clear</strong> removes the council of a village, and the students can write it again.</p>
+      ${cards || '<p class="muted">No village has written a council yet.</p>'}
+    </section>`;
+  app.querySelectorAll('[data-clear-council]').forEach((btn) =>
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.clearCouncil;
+      if (!confirm(`Clear the council of ${nameOf(id)}?`)) return;
+      try {
+        await api('POST', { action: 'clear-council', tribe_id: id });
+        await reload();
+        flash('The council was cleared.');
+      } catch (err) {
+        if (err.message !== 'Logged out') flash(err.message, true);
+      }
+    })
+  );
 }
 
 // The students who have logged in with Feide, and a way to remove one of
@@ -269,6 +308,10 @@ function render() {
   }
   if (view === 'students') {
     renderStudents();
+    return;
+  }
+  if (view === 'councils') {
+    renderCouncils();
     return;
   }
 

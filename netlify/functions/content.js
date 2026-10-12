@@ -87,6 +87,8 @@ exports.handler = withSessionRenewal(async (event) => {
     );
 
     const approvedIds = new Set(tribeIds);
+    const councilRows = tribeIds.length ? await supabase.from('councils').select('tribe_id, government, god, laws, allies, enemies').in('tribe_id', tribeIds) : { data: [], error: null };
+    if (councilRows.error) throw new Error(councilRows.error.message);
     const mine = (await ownVillageIds(supabase, user)).filter((id) => approvedIds.has(id));
 
     const approvedCharacters = new Set(characters.data.map((c) => c.id));
@@ -95,6 +97,7 @@ exports.handler = withSessionRenewal(async (event) => {
     return json(200, {
       mine,
       mine_characters: mineCharacters,
+      councils: councilRows.data,
       tribes: tribes.data.map(publicRow),
       characters: characters.data.map(publicRow),
       scenes: scenes.data,

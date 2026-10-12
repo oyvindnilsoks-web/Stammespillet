@@ -1,7 +1,7 @@
 import { escapeHtml } from '../translate.js';
 import { createUi } from './ui.js';
 import { ensureFigures, figureSheetUrl } from './figures.js';
-import { mappedVillages, villagersOf, ownVillagers, playerLook, allQuests } from './data.js';
+import { mappedVillages, villagersOf, ownVillagers, playerLook, allQuests, noticesFor } from './data.js';
 import { createWorldScene } from './world.js';
 import { createVillageScene } from './village.js';
 
@@ -63,6 +63,13 @@ function createProgress(state, save) {
     },
     setQuest(id, state) {
       play.quests = { ...(play.quests || {}), [id]: state };
+      progress.save();
+    },
+    noticeSeen(key) {
+      return (play.notices || []).includes(key);
+    },
+    markNotices(keys) {
+      play.notices = [...new Set([...(play.notices || []), ...keys])].slice(-200);
       progress.save();
     },
     playingAs() {
@@ -153,7 +160,7 @@ export function startPlay(container, content, { state, save }) {
           .map(({ villager, quest, tribe }) => ({
             who: villager.name,
             where: tribe ? tribe.name : '',
-            problem: quest.problem,
+            problem: quest.placeholder ? `(Placeholder) ${quest.problem}` : quest.problem,
             hint: quest.hint,
             status: progress.quest(villager.id) === 'found' ? `You found the answer. Go back to ${villager.name} and tell them.` : 'Not solved yet. Search other villages.',
           }));
@@ -175,6 +182,15 @@ export function startPlay(container, content, { state, save }) {
           this.scene.start('World');
         }
       };
+
+      // News from other villages: told once, the first time the player comes in after it.
+      setTimeout(() => {
+        if (stopped || ui.isOpen()) return;
+        const fresh = noticesFor(content).filter((n) => !progress.noticeSeen(n.key));
+        if (!fresh.length) return;
+        progress.markNotices(fresh.map((n) => n.key));
+        ui.openNote('News from other villages', 'The councils have decided', fresh.map((n) => n.text).join('\n'));
+      }, 1800);
 
       container.querySelector('.play-loading')?.remove();
       game = new Phaser.Game({

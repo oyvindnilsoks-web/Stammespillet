@@ -108,7 +108,7 @@ export function createUi(wrap) {
          ${enemy ? '<p class="play-closed">⚔ Your village is at war with this village. The gate is closed and you cannot go in.</p>' : ''}
          ${summary ? `<div class="play-answer"><p class="play-text">${text(summary)}</p></div>` : ''}
          <div class="play-actions">
-           ${enemy ? '' : '<button class="primary-btn" data-enter>Go in</button>'}
+           ${enemy ? '' : '<button class="choice-btn" data-enter>Go in</button>'}
            <button class="small-btn" data-close>${enemy ? 'Turn back' : 'Stay outside'}</button>
          </div>`,
         closed
@@ -152,7 +152,7 @@ export function createUi(wrap) {
     },
 
     // The sign in the middle of a village: what the students wrote about it.
-    openBoard(tribe, media, closed) {
+    openBoard(tribe, media, closed, council = null) {
       const type = tribe.charter_type === 'shadow' ? 'shadow' : 'village';
       const charter = tribe.charter || {};
       const sections = (CHARTERS[type]?.sections || [])
@@ -168,6 +168,18 @@ export function createUi(wrap) {
       const shields = media.filter((m) => m.kind === 'shield' && m.storage_path);
       const songs = media.filter((m) => m.kind === 'song');
       const mainImage = tribe.image ? imageUrl(tribe.image) : null;
+
+      const councilHtml = council
+        ? `<section class="play-block"><h3>The council</h3>${[
+            council.government && `<p><strong>Rule:</strong> ${text(council.government)}</p>`,
+            council.god && `<p><strong>God:</strong> ${text(council.god)}</p>`,
+            council.laws && `<p><strong>Laws:</strong> ${text(council.laws)}</p>`,
+            council.allies.length && `<p><strong>Allies:</strong> ${escapeHtml(council.allies.join(', '))}</p>`,
+            council.enemies.length && `<p><strong>At war with:</strong> ${escapeHtml(council.enemies.join(', '))}</p>`,
+          ]
+            .filter(Boolean)
+            .join('')}</section>`
+        : '';
 
       const gallery = pictures.length
         ? `<section class="play-block"><h3>Pictures</h3><div class="play-pictures">${pictures
@@ -197,6 +209,7 @@ export function createUi(wrap) {
          <div class="play-board">
            ${mainImage ? `<img class="play-hero-image" src="${escapeHtml(mainImage)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
            ${sections || '<p class="muted">Nobody has written anything on this sign yet.</p>'}
+           ${councilHtml}
            ${gallery}
            ${songHtml}
          </div>`,

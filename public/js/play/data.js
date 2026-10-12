@@ -124,15 +124,24 @@ export function generatedTopics(content, villager, tribe, biome = 'land') {
   const near = neighboursOf(content, tribe);
   if (near.length) {
     const lines = [`Our closest neighbours are ${list(near.map((n) => n.name))}.`];
-    const foes = near.filter((n) => listsVillage(v.enemies, n) || listsVillage((n.charter || {}).enemies, tribe));
-    if (foes.length) lines.push(`We do not trust ${list(foes.map((n) => n.name))}.`);
+    const foes = near.filter((n) => atWar(content, tribe, n));
+    if (foes.length) lines.push(`We are at war with ${list(foes.map((n) => n.name))}.`);
     topics.push({ id: 'gen_neighbours', question: 'Who are your neighbours?', answer: lines.join(' ') });
+  }
+
+  // What the council has decided: who rules, which god, who the friends and enemies are.
+  const council = councilOf(content, tribe.id);
+  if (council) {
+    const ally = (council.allies || []).map((id) => content.tribes.get(id)?.name).filter(Boolean);
+    if (asText(council.government)) topics.push({ id: 'gen_rule', question: 'Who rules here?', answer: asText(council.government) });
+    if (asText(council.god)) topics.push({ id: 'gen_god', question: 'Which god do you believe in?', answer: asText(council.god) });
+    if (ally.length) topics.push({ id: 'gen_allies', question: 'Who are your friends?', answer: `We are allied with ${list(ally)}.` });
   }
 
   if (shadow && asText(v.ambition)) topics.push({ id: 'gen_ambition', question: 'What does your village want?', answer: asText(v.ambition) });
   else if (asText(v.customs_law)) topics.push({ id: 'gen_law', question: 'Is there a rule I should know?', answer: asText(v.customs_law) });
 
-  return topics.slice(0, 5);
+  return topics.slice(0, 8);
 }
 
 // A problem a villager has, if the student wrote a whole one: the problem,
@@ -143,10 +152,100 @@ export function questOf(content, villager) {
   const problem = asText(c.quest_problem);
   const found = asText(c.quest_found);
   const targetText = asText(c.quest_target);
-  if (!problem || !found || !targetText) return null;
-  const targets = [...content.tribes.values()].filter((t) => t.id !== villager.tribe_id && listsVillage(targetText, t));
-  if (!targets.length) return null;
-  return { problem, hint: asText(c.quest_hint), found, thanks: asText(c.quest_thanks) || 'Thank you!', targets: targets.map((t) => t.id) };
+  if (problem && found && targetText) {
+    const targets = [...content.tribes.values()].filter((t) => t.id !== villager.tribe_id && listsVillage(targetText, t));
+    if (targets.length) return { problem, hint: asText(c.quest_hint), found, thanks: asText(c.quest_thanks) || 'Thank you!', targets: targets.map((t) => t.id) };
+  }
+  return placeholderQuest(content, villager);
+}
+
+// A stand-in problem for a villager whose student has not written one: the answer
+// is in the nearest other village. It shows how problems work, and is replaced by
+// the student's own problem when there is one.
+function placeholderQuest(content, villager) {
+  const tribe = content.tribes.get(villager.tribe_id);
+  const near = tribe && neighboursOf(content, tribe, 1)[0];
+  if (!near) return null;
+  return {
+    placeholder: true,
+    problem: 'I have lost something that matters a lot to me, and I cannot go looking for it myself. Please search the other villages and ask around.',
+    hint: 'Start with the villages closest to ours.',
+    found: 'You find a note: "This problem is a placeholder. Soon the students will write real problems, and the real answers will be here."',
+    thanks: 'Thank you for looking! (This is a placeholder: the students will write real problems soon.)',
+    targets: [near.id],
+  };
+}
+
+// News for the player's villages: another village has made them an ally or an enemy.
+export function noticesFor(content) {
+  const mine = content.mine || [];
+  const out = [];
+  for (const c of (content.councils ? [...content.councils.values()] : [])) {
+    if (mine.includes(c.tribe_id)) continue;
+    const from = content.tribes.get(c.tribe_id);
+    for (const id of mine) {
+      const to = content.tribes.get(id);
+      if (!from || !to) continue;
+      if ((c.allies || []).includes(id)) out.push({ key: `ally:${c.tribe_id}:${id}`, text: `${from.name} has made ${to.name} an ally.` });
+      if ((c.enemies || []).includes(id)) out.push({ key: `enemy:${c.tribe_id}:${id}`, text: `${from.name} has declared ${to.name} an enemy. You cannot visit each other.` });
+    }
+  }
+  return out;
+}
+
+// ---- the buildings of a village follow what the students wrote ----
+
+const letters = (words) => new RegExp(`(?<![\\p{L}])(?:${words.join('|')})(?![\\p{L}])`, 'u');
+const ROOF_COLOURS = [
+  [letters(['blue', 'blå', 'blått', 'blåe']), 0x5b8fd6],
+  [letters(['green', 'grønn', 'grønt', 'grønne']), 0x5fae5f],
+  [letters(['yellow', 'gul', 'gult', 'gule', 'golden', 'gylden', 'gull']), 0xe8c64a],
+  [letters(['white', 'hvit', 'hvitt', 'hvite']), 0xf2f2f2],
+  [letters(['black', 'svart', 'svarte', 'sort']), 0x4a4a52],
+  [letters(['purple', 'lilla', 'violet']), 0xa56fc8],
+  [letters(['pink', 'rosa']), 0xe99ac0],
+  [letters(['orange', 'oransje']), 0xf0954a],
+  [letters(['straw', 'thatch', 'thatched', 'halm', 'stråtak', 'torv', 'torvtak']), 0xd8b45a],
+];
+const RED = letters(['red', 'rød', 'rødt', 'røde']);
+const GREY = letters(['grey', 'gray', 'grå', 'grått', 'slate', 'skifer']);
+const ROOF_SENTENCE = letters(['roof', 'roofs', 'tak', 'taket', 'takene', 'house', 'houses', 'huset', 'hus', 'husene', 'cottage', 'cottages', 'hytte', 'hytter']);
+const STONE = letters(['stone', 'stones', 'stein', 'steinhus', 'rock', 'brick', 'bricks', 'murstein', 'mur', 'marble', 'marmor']);
+const WHITEWASH = letters(['whitewashed', 'hvitkalket', 'hvite hus', 'white houses', 'white walls', 'hvite vegger']);
+const SMALL = letters(['small', 'tiny', 'little', 'hamlet', 'few', 'liten', 'lite', 'små', 'bitteliten']);
+const LARGE = letters(['big', 'large', 'huge', 'city', 'town', 'many', 'metropolis', 'stor', 'store', 'storby', 'mange']);
+const LANDMARKS = [
+  ['lighthouse', letters(['lighthouse', 'fyrtårn', 'fyrlykt'])],
+  ['windmill', letters(['windmill', 'mill', 'mølle', 'vindmølle'])],
+  ['temple', letters(['temple', 'tempel', 'church', 'kirke', 'cathedral', 'katedral', 'shrine', 'helligdom', 'chapel', 'kapell'])],
+  ['fountain', letters(['fountain', 'fontene', 'springvann'])],
+  ['well', new RegExp('(?<![\\p{L}])(?:(?:a|the|old|water|stone|village) well|brønn|brønnen)(?![\\p{L}])', 'u')],
+  ['tower', letters(['tower', 'towers', 'tårn', 'tårnet', 'castle', 'slott', 'borg', 'fortress', 'festning'])],
+];
+
+// What the village text says about its houses and known buildings: the colour of
+// the roofs, stone or wood, how big the village is, and up to two landmarks. Reads
+// the English text and the Norwegian original. Nothing found means the usual look.
+export function buildingLook(tribe) {
+  const c = tribe.charter || {};
+  const o = tribe.charter_original || {};
+  const text = [c.landmarks, o.landmarks, c.clothing_symbol, o.clothing_symbol, c.place, o.place]
+    .filter((x) => typeof x === 'string')
+    .join('. ')
+    .toLowerCase();
+  const sentences = text.split(/[.!?\n]+/);
+  const roofText = sentences.filter((s) => ROOF_SENTENCE.test(s)).join(' ');
+
+  let roof = null;
+  const colour = ROOF_COLOURS.find(([re]) => re.test(roofText));
+  if (colour) roof = { tile: 'grey', tint: colour[1] };
+  else if (RED.test(roofText)) roof = { tile: 'red', tint: null };
+  else if (GREY.test(roofText)) roof = { tile: 'grey', tint: null };
+
+  const wallTint = WHITEWASH.test(text) ? 0xf4f0e8 : STONE.test(text) ? 0xa7abb8 : null;
+  const houses = SMALL.test(text) && !LARGE.test(text) ? 5 : LARGE.test(text) && !SMALL.test(text) ? 8 : 7;
+  const landmarks = LANDMARKS.filter(([, re]) => re.test(text)).map(([kind]) => kind).slice(0, 2);
+  return { roof, wallTint, houses, landmarks };
 }
 
 // The problems of the characters a player can meet (not the player's own).
@@ -168,9 +267,30 @@ export function isEnemy(content, tribe) {
     if (id === tribe.id) return false;
     const mine = content.tribes.get(id);
     if (!mine) continue;
-    if (names((mine.charter || {}).enemies, tribe) || names((tribe.charter || {}).enemies, mine)) return true;
+    if (atWar(content, mine, tribe)) return true;
   }
   return false;
+}
+
+// The council of a village: how it is ruled, its god, its laws, its allies and enemies.
+export function councilOf(content, tribeId) {
+  return (content.councils && content.councils.get(tribeId)) || null;
+}
+
+// Two villages are at war when either council names the other as an enemy.
+// (Older villages wrote their enemies as text in the form: that still counts.)
+export function atWar(content, a, b) {
+  const enemies = (tribe) => (councilOf(content, tribe.id) || {}).enemies || [];
+  return enemies(a).includes(b.id) || enemies(b).includes(a.id) || names((a.charter || {}).enemies, b) || names((b.charter || {}).enemies, a);
+}
+
+// What the council says, with the villages named, for the sign in the village.
+export function councilView(content, tribeId) {
+  const c = councilOf(content, tribeId);
+  if (!c) return null;
+  const named = (ids) => (ids || []).map((id) => content.tribes.get(id)?.name).filter(Boolean);
+  const view = { government: c.government, god: c.god, laws: c.laws, allies: named(c.allies), enemies: named(c.enemies) };
+  return view.government || view.god || view.laws || view.allies.length || view.enemies.length ? view : null;
 }
 
 // The villagers of a village that the player can talk to. The student's own

@@ -1,4 +1,4 @@
-import { figureFor, portraitOf, hashString, mulberry32, villagersOf, mediaOfTribe, questOf, allQuests, generatedTopics } from './data.js';
+import { figureFor, portraitOf, hashString, mulberry32, villagersOf, mediaOfTribe, questOf, allQuests, generatedTopics, councilView, buildingLook } from './data.js';
 import { sampleBiome } from './mask.js';
 import { mediaUrl } from '../content.js';
 
@@ -49,6 +49,14 @@ const BIOMES = {
 // An evil (shadow) village is gloomy whatever the ground is: dark and cold
 // colours, dead trees, fog and torches that flicker.
 const SHADOW = { bg: '#140d1c', grass: 0x5d4e6b, dirt: 0x4a3a4c, treeTint: 0x3b3047, treeFrames: [28, 28, 16], houseTint: 0x8b7a99, wash: [0x2a2036, 0.65] };
+
+// A colour over a colour, as a tint on a tile does it.
+function mulTint(a, b) {
+  if (a === null || a === undefined) return b ?? null;
+  if (b === null || b === undefined) return a;
+  const part = (shift) => Math.round((((a >> shift) & 255) * ((b >> shift) & 255)) / 255);
+  return (part(16) << 16) | (part(8) << 8) | part(0);
+}
 
 export function createVillageScene(Phaser, ctx) {
   return class VillageScene extends Phaser.Scene {
@@ -117,13 +125,20 @@ export function createVillageScene(Phaser, ctx) {
         }
       }
 
+      // The buildings follow what the students wrote: roof colour, stone or wood,
+      // how big the village is, and up to two known buildings.
+      const look = buildingLook(tribe);
+      const houses = HOUSES.slice(0, look.houses);
+      const roofTint = mulTint(look.roof && look.roof.tint, biome.houseTint);
+      const wallTint = mulTint(look.wallTint, biome.houseTint);
+
       // Houses.
-      HOUSES.forEach((h, i) => {
-        const colour = (hashString(tribe.id) + i) % 3 === 0 ? 'grey' : 'red';
+      houses.forEach((h, i) => {
+        const colour = look.roof ? look.roof.tile : (hashString(tribe.id) + i) % 3 === 0 ? 'grey' : 'red';
         for (let c = 0; c < 3; c++) {
-          tile(ROOF_TOP[colour][c], h.x + c, h.y, 2, biome.houseTint);
-          tile(ROOF_LOW[colour][c], h.x + c, h.y + 1, 2, biome.houseTint);
-          tile(WALL[c], h.x + c, h.y + 2, 2, biome.houseTint);
+          tile(ROOF_TOP[colour][c], h.x + c, h.y, 2, roofTint);
+          tile(ROOF_LOW[colour][c], h.x + c, h.y + 1, 2, roofTint);
+          tile(WALL[c], h.x + c, h.y + 2, 2, wallTint);
         }
         if (shadow) {
           // A torch by the door that flickers.
@@ -132,6 +147,15 @@ export function createVillageScene(Phaser, ctx) {
         }
         this.blocks.push({ x: h.x * T, y: h.y * T + T * 0.6, w: 3 * T, h: 2.4 * T });
         mark(h.x, h.y, 3, 3);
+      });
+
+      // The known buildings the text talks about, left and right of the square.
+      const spots = [{ x: 4.6 * T, by: 9.3 * T, tiles: [3, 6] }, { x: 17 * T, by: 9.3 * T, tiles: [16, 6] }];
+      look.landmarks.forEach((kind, i) => {
+        const spot = spots[i];
+        mark(spot.tiles[0], spot.tiles[1], 3, 4);
+        const area = this.drawLandmark(kind, spot.x, spot.by);
+        this.blocks.push(area);
       });
 
       // The sign in the middle: it is what the students wrote about the village.
@@ -148,7 +172,7 @@ export function createVillageScene(Phaser, ctx) {
         y: signY + 6,
         hint: 'Read the sign (E or click here)',
         sprite: sign,
-        open: () => ctx.ui.openBoard(tribe, mediaOfTribe(ctx.content, tribe.id), () => this.unlock()),
+        open: () => ctx.ui.openBoard(tribe, mediaOfTribe(ctx.content, tribe.id), () => this.unlock(), councilView(ctx.content, tribe.id)),
       });
       mark(signTile.x, signTile.y, 2, 1);
 
@@ -160,7 +184,7 @@ export function createVillageScene(Phaser, ctx) {
         const nearSquare = x >= 6 && x <= 15 && y >= 4 && y <= 10;
         if (used.has(`${x},${y}`) || isPath(x, y) || x >= 9 && x <= 12 && y >= 9 || nearSquare) continue;
         // Keep the area around the houses' doors open.
-        if (HOUSES.some((h) => x >= h.x - 0 && x <= h.x + 2 && y === h.y + 3)) continue;
+        if (houses.some((h) => x >= h.x - 0 && x <= h.x + 2 && y === h.y + 3)) continue;
         used.add(`${x},${y}`);
         tile(biome.treeFrames[Math.floor(rand() * biome.treeFrames.length)], x, y, 2 + y / 100, biome.treeTint);
         this.blocks.push({ x: x * T + T * 0.2, y: y * T + T * 0.45, w: T * 0.6, h: T * 0.45 });
@@ -173,7 +197,7 @@ export function createVillageScene(Phaser, ctx) {
         const y = 1 + Math.floor(rand() * (ROWS - 3));
         const nearSquare = x >= 6 && x <= 15 && y >= 4 && y <= 10;
         if (used.has(`${x},${y}`) || isPath(x, y) || (x >= 9 && x <= 12 && y >= 9) || nearSquare) continue;
-        if (HOUSES.some((h) => x >= h.x && x <= h.x + 2 && y === h.y + 3)) continue;
+        if (houses.some((h) => x >= h.x && x <= h.x + 2 && y === h.y + 3)) continue;
         used.add(`${x},${y}`);
         this.add.ellipse(x * T + T / 2, y * T + T * 0.7, T * 0.85, T * 0.55, 0x8b9096).setStrokeStyle(3, 0x4a4e52).setDepth(2 + y / 100);
         this.blocks.push({ x: x * T + T * 0.1, y: y * T + T * 0.4, w: T * 0.8, h: T * 0.5 });
@@ -299,6 +323,60 @@ export function createVillageScene(Phaser, ctx) {
       this.locked = false;
     }
 
+    // A drawn building, standing on the ground at (x, by). Returns the place that is blocked.
+    drawLandmark(kind, x, by) {
+      const depth = 2 + by / T / 100;
+      const box = (cx, bottom, w, h, fill, stroke = 0x3b3b44) =>
+        this.add.rectangle(cx, bottom - h / 2, w, h, fill).setStrokeStyle(2, stroke).setDepth(depth);
+      const roof = (cx, bottom, w, h, fill) =>
+        this.add.triangle(cx, bottom - h / 2, 0, h, w / 2, 0, w, h, fill).setStrokeStyle(2, 0x3b3b44).setDepth(depth);
+      this.add.ellipse(x, by, T * 1.5, T * 0.4, 0x000000, 0.3).setDepth(depth - 0.01);
+      let width = T * 1.2;
+
+      if (kind === 'tower') {
+        box(x, by, T * 1.1, T * 2.6, 0x9aa0ab);
+        for (let i = -1; i <= 1; i++) box(x + i * T * 0.38, by - T * 2.6, T * 0.28, T * 0.3, 0x9aa0ab);
+        box(x, by - T * 1.6, T * 0.25, T * 0.45, 0x23262e);
+        box(x, by, T * 0.4, T * 0.6, 0x5a3b1f);
+      } else if (kind === 'lighthouse') {
+        box(x, by, T * 1.1, T * 0.9, 0xf2f2f2);
+        box(x, by - T * 0.9, T * 1.0, T * 0.9, 0xc0392b);
+        box(x, by - T * 1.8, T * 0.9, T * 0.9, 0xf2f2f2);
+        box(x, by - T * 2.7, T * 0.7, T * 0.5, 0xffe28a);
+        roof(x, by - T * 3.2, T * 0.9, T * 0.5, 0xc0392b);
+        const glow = this.add.ellipse(x, by - T * 2.95, T * 2.2, T * 1.1, 0xffe28a, 0.35).setDepth(depth + 0.01);
+        this.tweens.add({ targets: glow, alpha: 0.08, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      } else if (kind === 'windmill') {
+        box(x, by, T * 1.1, T * 1.7, 0xb08a5a);
+        roof(x, by - T * 1.7, T * 1.4, T * 0.7, 0x7a4b2a);
+        box(x, by, T * 0.35, T * 0.55, 0x4a2f18);
+        const blades = this.add.container(x, by - T * 1.5).setDepth(depth + 0.01);
+        blades.add([this.add.rectangle(0, 0, T * 0.16, T * 1.9, 0xf2e9da).setStrokeStyle(2, 0x3b3b44), this.add.rectangle(0, 0, T * 1.9, T * 0.16, 0xf2e9da).setStrokeStyle(2, 0x3b3b44)]);
+        this.tweens.add({ targets: blades, angle: 360, duration: 7000, repeat: -1 });
+        width = T * 1.9;
+      } else if (kind === 'well') {
+        box(x - T * 0.45, by - T * 0.3, T * 0.12, T * 0.9, 0x5a3b1f);
+        box(x + T * 0.45, by - T * 0.3, T * 0.12, T * 0.9, 0x5a3b1f);
+        this.add.ellipse(x, by - T * 0.1, T * 1.1, T * 0.55, 0x8b9096).setStrokeStyle(2, 0x3b3b44).setDepth(depth);
+        this.add.ellipse(x, by - T * 0.14, T * 0.8, T * 0.35, 0x3f6f9f).setDepth(depth + 0.01);
+        roof(x, by - T * 1.2, T * 1.3, T * 0.5, 0x7a4b2a);
+        width = T * 1.1;
+      } else if (kind === 'temple') {
+        box(x, by, T * 2.2, T * 0.3, 0xcfc8b6);
+        for (let i = -1.5; i <= 1.5; i++) box(x + i * T * 0.55, by - T * 0.3, T * 0.24, T * 1.3, 0xe8e2d2);
+        roof(x, by - T * 1.6, T * 2.4, T * 0.8, 0xc9c2b0);
+        width = T * 2.2;
+      } else if (kind === 'fountain') {
+        this.add.ellipse(x, by - T * 0.2, T * 1.7, T * 0.8, 0xb9bec6).setStrokeStyle(2, 0x3b3b44).setDepth(depth);
+        this.add.ellipse(x, by - T * 0.25, T * 1.3, T * 0.55, 0x4f93c8).setDepth(depth + 0.01);
+        box(x, by - T * 0.2, T * 0.18, T * 0.9, 0xb9bec6);
+        const jet = this.add.ellipse(x, by - T * 1.1, T * 0.5, T * 0.35, 0xbfe3f5, 0.8).setDepth(depth + 0.02);
+        this.tweens.add({ targets: jet, y: by - T * 1.35, alpha: 0.3, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        width = T * 1.7;
+      }
+      return { x: x - width / 2, y: by - T * 0.55, w: width, h: T * 0.55 };
+    }
+
     // What a villager says about their problem, depending on how far the player has come.
     questTopics(villager) {
       const quest = questOf(ctx.content, villager);
@@ -312,7 +390,8 @@ export function createVillageScene(Phaser, ctx) {
         });
       }
       if (state === 'done') return say('About your problem', quest.thanks);
-      const answer = quest.hint ? `${quest.problem}\n\nHint: ${quest.hint}` : quest.problem;
+      const said = quest.hint ? `${quest.problem}\n\nHint: ${quest.hint}` : quest.problem;
+      const answer = quest.placeholder ? `(Placeholder) ${said}` : said;
       return say(state === 'open' ? 'About your problem' : 'Do you need help?', answer, () => {
         if (!state) {
           ctx.progress.setQuest(villager.id, 'open');

@@ -55,6 +55,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/council"
+  to = "/.netlify/functions/council"
+  status = 200
+
+[[redirects]]
   from = "/api/draft"
   to = "/.netlify/functions/draft"
   status = 200

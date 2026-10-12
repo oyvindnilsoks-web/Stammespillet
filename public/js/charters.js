@@ -238,10 +238,16 @@ const VILLAGER = [
   },
 ];
 
+// Students write their own problems (the "A Problem to Solve" part of the villager
+// form) when this is true. Until then the game gives every villager a placeholder
+// problem, so the way it works can be tried. Set it to true when the class gets there.
+export const QUESTS_ENABLED = false;
+const withoutQuests = (sections) => sections.filter((s) => !s.fields.some((f) => f.key.startsWith('quest_')));
+
 export const CHARTERS = {
   village: { label: 'Village Charter', sections: VILLAGE },
   shadow: { label: 'Shadow Charter', sections: SHADOW },
-  villager: { label: 'Villager Charter', sections: VILLAGER },
+  villager: { label: 'Villager Charter', sections: QUESTS_ENABLED ? VILLAGER : withoutQuests(VILLAGER) },
 };
 
 export function allFields(type) {

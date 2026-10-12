@@ -31,15 +31,16 @@ function num(v) {
 }
 
 async function loadAll(supabase) {
-  const [villages, villagers, media, settings, memberRows, studentRows] = await Promise.all([
+  const [villages, villagers, media, settings, memberRows, studentRows, councilRows] = await Promise.all([
     supabase.from('tribes').select('*').order('created_at'),
     supabase.from('characters').select('*').order('created_at'),
     supabase.from('media').select('*').order('sort_order').order('created_at'),
     supabase.from('settings').select('key, value'),
     supabase.from('village_members').select('tribe_id, user_id').order('joined_at'),
     supabase.from('students').select('user_id, display_name, is_admin, last_login').order('display_name'),
+    supabase.from('councils').select('tribe_id, government, god, laws, allies, enemies, source_lang, original, updated_at').order('updated_at', { ascending: false }),
   ]);
-  const err = villages.error || villagers.error || media.error || settings.error || memberRows.error || studentRows.error;
+  const err = villages.error || villagers.error || media.error || settings.error || memberRows.error || studentRows.error || councilRows.error;
   if (err) return json(500, { error: err.message });
   // Feide names for "sent by" in the admin lists. A failure here must not
   // hide the rest of the page, so the teacher just sees "unknown student".
@@ -56,6 +57,7 @@ async function loadAll(supabase) {
     owners,
     members,
     students: studentRows.data,
+    councils: councilRows.data,
     villages: villages.data,
     villagers: villagers.data,
     media: media.data,
@@ -298,6 +300,14 @@ async function deleteMedia(supabase, { id }) {
   return json(200, { ok: true });
 }
 
+// Takes away what a council says, for example if it is not suitable.
+async function clearCouncil(supabase, { tribe_id: tribeId }) {
+  if (typeof tribeId !== 'string' || !tribeId) return json(400, { error: 'Choose a village.' });
+  const { error } = await supabase.from('councils').delete().eq('tribe_id', tribeId);
+  if (error) return json(500, { error: error.message });
+  return json(200, { ok: true });
+}
+
 async function setSetting(supabase, { key, value }) {
   if (key !== 'submissions_open' || typeof value !== 'boolean') return json(400, { error: 'Invalid setting' });
   const { error } = await supabase.from('settings').upsert({ key, value });
@@ -311,6 +321,7 @@ const ACTIONS = {
   'set-status': setStatus,
   'set-owner': setOwner,
   'delete-student': deleteStudent,
+  'clear-council': clearCouncil,
   delete: deleteRow,
   'upload-url': uploadUrl,
   'add-media': addMedia,

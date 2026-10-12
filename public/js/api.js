@@ -84,6 +84,30 @@ export async function sendSubmission(payload) {
   return data;
 }
 
+// The council of the villages the student lives in, and a way to save one.
+export async function loadCouncils() {
+  const res = await fetch('/api/council', { credentials: 'same-origin' });
+  if (!res.ok) throw new Error('Could not load the councils.');
+  return res.json();
+}
+
+export async function saveCouncil(payload) {
+  const res = await fetch('/api/council', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) throw new Error('You are logged out. Log in again.');
+  if (!res.ok) {
+    const err = new Error(data.error === 'translation_unavailable' ? 'The translation did not work.' : data.error || 'Could not save.');
+    err.code = data.error;
+    throw err;
+  }
+  return data;
+}
+
 // Join a village a group member started, with its group code. Resolves to
 // { id, name } of the village.
 export async function joinVillage(code) {

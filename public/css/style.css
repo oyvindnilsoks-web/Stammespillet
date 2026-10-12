@@ -671,3 +671,7 @@ main.wide { max-width: 1000px; }
 
 .play-window.dark { background: #1b1422; border-color: #7a3a4a; }
 .play-window.dark h2 { color: #e8a0a0; }
+
+.council-checks { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin-top: 0.3rem; }
+.council-check { display: inline-flex; gap: 0.35rem; align-items: center; cursor: pointer; }
+.council-actions { margin-top: 0.8rem; display: flex; gap: 0.8rem; align-items: center; }

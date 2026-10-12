@@ -1,6 +1,7 @@
 import { loadSubmissions, sendSubmission, joinVillage, addVillageImage, addVillagerImage, deleteVillageImage, loadDrafts, putDraft, removeDraft } from './api.js';
 import { mediaUrl } from './content.js';
 import { figurePortrait, ensureFigures, FIGURE_COUNT } from './play/figures.js';
+import { renderCouncil } from './council.js';
 import { CHARTERS, allFields } from './charters.js';
 import { escapeHtml } from './translate.js';
 
@@ -36,6 +37,7 @@ const TEXT = {
     edit: 'Edit',
     tabVillage: 'Our village',
     tabVillager: 'My villager',
+    tabCouncil: 'Council',
     oneWrites: 'One person per group writes the village. <span class="no-help">Én i gruppa skriver inn landsbyen.</span>',
     typeVillage: 'Village Charter',
     typeShadow: 'Shadow Charter <span class="no-help">(den onde landsbyen)</span>',
@@ -112,6 +114,7 @@ const TEXT = {
     edit: 'Rediger',
     tabVillage: 'Landsbyen vår',
     tabVillager: 'Min innbygger',
+    tabCouncil: 'Rådet',
     oneWrites: 'Én i gruppa skriver inn landsbyen.',
     typeVillage: 'Vanlig landsby',
     typeShadow: 'Skyggelandsby (den onde landsbyen)',
@@ -1023,6 +1026,7 @@ function renderPage() {
       <div class="contribute-tabs" role="tablist">
         <button class="lore-tab ${tab === 'village' ? 'active' : ''}" data-tab="village">${t.tabVillage}</button>
         <button class="lore-tab ${tab === 'villager' ? 'active' : ''}" data-tab="villager">${t.tabVillager}</button>
+        <button class="lore-tab ${tab === 'council' ? 'active' : ''}" data-tab="council">${t.tabCouncil}</button>
       </div>
       <div id="contribute-form"></div>
     </div>`;
@@ -1052,7 +1056,8 @@ function renderPage() {
     });
   });
 
-  renderForm();
+  if (tab === 'council') renderCouncil(root.querySelector('#contribute-form'), { lang, translation: data.translation });
+  else renderForm();
 }
 
 export async function renderContribute(container) {
