@@ -32,6 +32,13 @@ function num(v) {
 }
 
 async function loadAll(supabase) {
+  let artifactRows = [];
+  try {
+    const { data: artifacts } = await supabase.from('artifacts').select('*').order('created_at');
+    artifactRows = artifacts || [];
+  } catch (e) {
+    console.error('Could not load artifacts:', e.message);
+  }
   let xpRows = [];
   try {
     const { data: xp } = await supabase.from('xp').select('user_id, xp, wins, losses, draws');
@@ -74,6 +81,7 @@ async function loadAll(supabase) {
     councils: councilRows.data,
     world: worldState,
     xp: xpRows,
+    artifacts: artifactRows,
     default_words: require('./_lib/tasks').DEFAULT_WORDS_TEXT.trim(),
     villages: villages.data,
     villagers: villagers.data,
@@ -367,6 +375,37 @@ async function taskSet(supabase, body) {
   return json(200, { ok: true, words: words.length, kinds });
 }
 
+// An artifact: approve or turn it down, name it, and choose the rank (1-20) where
+// it unlocks in the backpacks.
+async function setArtifact(supabase, body) {
+  const patch = {};
+  if (body.status !== undefined) {
+    if (!['pending', 'approved', 'rejected'].includes(body.status)) return json(400, { error: 'Invalid status' });
+    patch.status = body.status;
+  }
+  if (body.rank_required !== undefined) {
+    const n = Number(body.rank_required);
+    if (!Number.isInteger(n) || n < 1 || n > 20) return json(400, { error: 'The rank must be from 1 to 20.' });
+    patch.rank_required = n;
+  }
+  if (body.name !== undefined) patch.name = String(body.name).trim().slice(0, 40);
+  if (body.description !== undefined) patch.description = String(body.description).trim().slice(0, 200);
+  if (patch.name === '') return json(400, { error: 'The artifact needs a name.' });
+  const { error } = await supabase.from('artifacts').update(patch).eq('id', String(body.id || ''));
+  if (error) return json(500, { error: error.message });
+  return json(200, { ok: true });
+}
+
+async function deleteArtifact(supabase, { id }) {
+  const { data: row, error } = await supabase.from('artifacts').select('id, storage_path').eq('id', String(id || '')).maybeSingle();
+  if (error) return json(500, { error: error.message });
+  if (!row) return json(404, { error: 'No such artifact.' });
+  const { error: delErr } = await supabase.from('artifacts').delete().eq('id', row.id);
+  if (delErr) return json(500, { error: delErr.message });
+  if (row.storage_path) await supabase.storage.from('media').remove([row.storage_path]);
+  return json(200, { ok: true });
+}
+
 async function worldStep(supabase) {
   const result = await worldLib.advance(supabase, new Date(), { force: true });
   return json(200, { ok: true, result });
@@ -394,6 +433,8 @@ const ACTIONS = {
   'world-set': worldSet,
   'world-step': worldStep,
   'task-set': taskSet,
+  'set-artifact': setArtifact,
+  'delete-artifact': deleteArtifact,
   'world-reset': worldReset,
   delete: deleteRow,
   'upload-url': uploadUrl,

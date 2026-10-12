@@ -1,6 +1,6 @@
 import { escapeHtml } from '../translate.js';
 import { createUi } from './ui.js';
-import { loadWorld, cleanseWorld, presenceBeat, presenceState, startCouncilSession, startTask, submitTask, battleList, battleDo } from '../api.js';
+import { loadWorld, cleanseWorld, presenceBeat, presenceState, startCouncilSession, startTask, submitTask, battleList, battleDo, presenceWorld, artifactList } from '../api.js';
 import { renderCouncil } from '../council.js';
 import { ensureFigures, figureSheetUrl } from './figures.js';
 import { mappedVillages, villagersOf, ownVillagers, playerLook, allQuests, noticesFor } from './data.js';
@@ -72,6 +72,14 @@ function createProgress(state, save) {
     },
     markNotices(keys) {
       play.notices = [...new Set([...(play.notices || []), ...keys])].slice(-200);
+      progress.save();
+    },
+    // The rank the student had last time they were told, so a rank-up is told once.
+    lastRank() {
+      return play.rank || null;
+    },
+    setLastRank(rank) {
+      play.rank = rank;
       progress.save();
     },
     playingAs() {
@@ -151,6 +159,7 @@ export function startPlay(container, content, { state, save }) {
         beat: (tribeId) => presenceBeat(tribeId).catch(() => {}),
         state: (tribeId) => presenceState(tribeId),
         start: (tribeId) => startCouncilSession(tribeId),
+        world: (fx, fy, look) => presenceWorld(fx, fy, look),
       };
       ctx.openCouncil = (tribe, closed) =>
         ui.openCouncil(tribe.name, (host) => renderCouncil(host, { lang: 'en', translation: false, tribeId: tribe.id, live: true }), closed);
@@ -162,6 +171,14 @@ export function startPlay(container, content, { state, save }) {
           const d = await battleList();
           ctx.xp = d.stats;
           ctx.refreshHud();
+          // A rank-up is told once, when no window is open.
+          const now = d.stats.rank.rank;
+          const before = progress.lastRank();
+          if (before === null) progress.setLastRank(now);
+          else if (now > before && !ui.isOpen()) {
+            progress.setLastRank(now);
+            ui.openNote('Rank up!', 'The XP ladder', `You are now rank ${now}: ${d.stats.rank.name}. Open the backpack to see what has unlocked.`);
+          } else if (now < before) progress.setLastRank(now);
           // The result of a battle you started, told once.
           if (d.unseen.length && !ui.isOpen()) {
             await battleDo({ action: 'seen' });
@@ -191,6 +208,46 @@ export function startPlay(container, content, { state, save }) {
         );
       };
       ctx.refreshXp();
+
+      // The backpack: the rank on the XP ladder, and the artifacts the students drew.
+      ctx.openBackpack = async () => {
+        if (ui.isOpen()) return;
+        try {
+          ui.openBackpack(await artifactList());
+        } catch {
+          ui.openNote('Backpack', 'Something went wrong', 'Could not open the backpack. Try again.');
+        }
+      };
+
+      // Students on the map challenge each other: both get the same words at once.
+      const battleApi = {
+        list: battleList,
+        start: () => battleDo({ action: 'challenge' }),
+        accept: (id) => battleDo({ action: 'accept', id }),
+        submit: (id, answers) => battleDo({ action: 'submit', id, answers }),
+        cancel: (id) => battleDo({ action: 'cancel', id }),
+        seen: () => battleDo({ action: 'seen' }),
+      };
+      ctx.challengePlayer = (pid) => {
+        if (ui.isOpen()) return;
+        ui.openBattle(battleApi, () => ctx.refreshXp(), () => ctx.refreshXp(), battleDo({ action: 'challenge-player', pid }));
+      };
+      const shownInvites = new Set();
+      ctx.showInvite = (invite) => {
+        if (ui.isOpen() || shownInvites.has(invite.id)) return;
+        shownInvites.add(invite.id);
+        ui.openInvite(
+          invite,
+          () => {
+            ui.close();
+            ui.openBattle(battleApi, () => ctx.refreshXp(), () => ctx.refreshXp(), battleDo({ action: 'accept', id: invite.id }));
+          },
+          async () => {
+            await battleDo({ action: 'decline', id: invite.id }).catch(() => {});
+            ui.close();
+          }
+        );
+      };
 
       // The tasks that clean the poison where the figure stands.
       ctx.openTask = async (fx, fy) => {
@@ -238,8 +295,8 @@ export function startPlay(container, content, { state, save }) {
         const shieldOf = (ctx.world && ctx.world.shields) || {};
         const ownShield = (content.mine || []).length ? Math.max(...content.mine.map((id) => shieldOf[id] || 0)) : null;
         const poison = ctx.world && !ctx.world.paused ? `<span class="play-poison">Poison <strong>${ctx.world.percent}%</strong></span>${ownShield === null ? '' : `<span class="play-poison">Shield <strong>${ownShield}</strong></span>`}` : '';
-        const xpPart = ctx.xp ? `<span>XP <strong>${ctx.xp.xp}</strong></span>` : '';
-        ui.setHud(`${picker}${poison}${xpPart}<button type="button" class="play-quests-btn" id="play-battle">Battle</button><button type="button" class="play-quests-btn" id="play-quests">Problems <strong>${openQuests}</strong></button><span>Villages visited <strong>${visited}/${villages.length}</strong></span><span>Villagers met <strong>${met}/${people.length}</strong></span>`);
+        const xpPart = ctx.xp ? `<span>XP <strong>${ctx.xp.xp}</strong> · Rank <strong>${ctx.xp.rank.rank}</strong></span>` : '';
+        ui.setHud(`${picker}${poison}${xpPart}<button type="button" class="play-quests-btn" id="play-battle">Battle</button><button type="button" class="play-quests-btn" id="play-backpack">Backpack</button><button type="button" class="play-quests-btn" id="play-quests">Problems <strong>${openQuests}</strong></button><span>Villages visited <strong>${visited}/${villages.length}</strong></span><span>Villagers met <strong>${met}/${people.length}</strong></span>`);
       };
 
       wrap.querySelector('#play-hud').addEventListener('change', (e) => {
@@ -262,6 +319,7 @@ export function startPlay(container, content, { state, save }) {
       wrap.querySelector('#play-hud').addEventListener('click', (e) => {
         if (e.target.closest('#play-quests') && !ui.isOpen()) ui.openQuestLog(ctx.questLog());
         if (e.target.closest('#play-battle')) ctx.openBattle();
+        if (e.target.closest('#play-backpack')) ctx.openBackpack();
       });
 
       const Boot = class extends Phaser.Scene {

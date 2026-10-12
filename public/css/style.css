@@ -688,3 +688,21 @@ main.wide { max-width: 1000px; }
 
 .battle-list { list-style: none; margin: 0.3rem 0 0.8rem; padding: 0; display: grid; gap: 0.4rem; }
 .battle-list li { display: flex; justify-content: space-between; gap: 0.6rem; align-items: center; }
+
+/* ---------- Artifacts, the backpack and the XP ladder ---------- */
+.artifact-list { list-style: none; margin: 0.4rem 0 1rem; padding: 0; display: grid; gap: 0.6rem; }
+.artifact-row { display: grid; grid-template-columns: 72px 1fr auto; gap: 0.8rem; align-items: center; }
+.artifact-img { width: 72px; height: 72px; object-fit: contain; border-radius: 8px; background: repeating-conic-gradient(#3a3228 0% 25%, #2b2118 0% 50%) 50% / 16px 16px; }
+.artifact-form { display: grid; gap: 0.4rem; max-width: 36rem; }
+.artifact-preview { display: inline-block; border-radius: 8px; padding: 0.4rem; background: repeating-conic-gradient(#3a3228 0% 25%, #2b2118 0% 50%) 50% / 16px 16px; }
+.artifact-canvas { display: block; max-width: 100%; max-height: 260px; }
+.artifact-admin { display: grid; grid-template-columns: 96px 1fr; gap: 0.8rem; margin-bottom: 0.8rem; }
+.artifact-admin .artifact-img { width: 96px; height: 96px; }
+.artifact-admin input[type=text], .artifact-admin textarea { width: 100%; }
+.rank-bar { height: 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.12); overflow: hidden; margin: 0.4rem 0; }
+.rank-bar > div { height: 100%; background: var(--accent); }
+.pack-grid { list-style: none; margin: 0.6rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 0.6rem; }
+.pack-item { display: grid; gap: 0.25rem; justify-items: center; text-align: center; padding: 0.6rem; border: 1px solid var(--muted); border-radius: 10px; background: var(--bg); font-size: 0.85rem; }
+.pack-item img { width: 96px; height: 96px; object-fit: contain; }
+.pack-item.locked { opacity: 0.6; }
+.pack-lock { font-size: 2.4rem; line-height: 96px; height: 96px; }

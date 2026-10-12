@@ -78,6 +78,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/artifact"
+  to = "/.netlify/functions/artifact"
+  status = 200
+
+[[redirects]]
   from = "/api/draft"
   to = "/.netlify/functions/draft"
   status = 200

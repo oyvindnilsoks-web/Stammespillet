@@ -287,12 +287,37 @@ export function createVillageScene(Phaser, ctx) {
       // not asked for in every picture, so a press is never missed.
       this.wantTalk = false;
       this.onTalkKey = (e) => {
-        if (e.repeat || !['e', 'E', ' ', 'Enter'].includes(e.key)) return;
+        if (ctx.ui.isOpen() || e.repeat || !['e', 'E', ' ', 'Enter'].includes(e.key)) return;
         if (/^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(document.activeElement?.tagName || '') && e.key !== 'e' && e.key !== 'E') return;
         this.wantTalk = true;
       };
       document.addEventListener('keydown', this.onTalkKey);
       this.events.once('shutdown', () => document.removeEventListener('keydown', this.onTalkKey));
+
+      // While a window is open the keys are for the window: no walking, no talking
+      // to a villager by accident, no blocked space bar, while someone types.
+      const lockKeys = (open) => {
+        const kb = this.input.keyboard;
+        if (!kb) return;
+        kb.enabled = !open;
+        if (open) {
+          kb.resetKeys();
+          kb.disableGlobalCapture?.();
+        } else {
+          kb.enableGlobalCapture?.();
+          this.wantTalk = false;
+        }
+      };
+      lockKeys(ctx.ui.isOpen());
+      const stopLocking = ctx.ui.onToggle(lockKeys);
+      this.events.once('shutdown', () => {
+        stopLocking();
+        const kb = this.input.keyboard;
+        if (kb) {
+          kb.enabled = true;
+          kb.enableGlobalCapture?.();
+        }
+      });
 
       this.input.on('pointerdown', (pointer) => {
         if (this.locked || ctx.ui.isOpen()) return;

@@ -96,6 +96,20 @@ export async function presenceBeat(tribeId) {
   });
 }
 
+// The student stands on the world map here (fx and fy are fractions of the map, look
+// is the figure or null). The answer: the other students on the map, a challenge
+// waiting for this student, and how many battle results have not been shown.
+export async function presenceWorld(fx, fy, look) {
+  const res = await fetch('/api/presence', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ world: true, fx, fy, look }),
+  });
+  if (!res.ok) throw new Error('Could not see the others.');
+  return res.json();
+}
+
 export async function presenceState(tribeId) {
   const res = await fetch(`/api/presence?tribe_id=${encodeURIComponent(tribeId)}`, { credentials: 'same-origin' });
   if (!res.ok) throw new Error('Could not check who is here.');
@@ -127,6 +141,36 @@ export async function cleanseWorld(tribeId) {
     body: JSON.stringify({ action: 'cleanse', tribe_id: tribeId }),
   });
   if (!res.ok) throw new Error('Could not clean.');
+  return res.json();
+}
+
+// Artifacts: what the student has sent, the backpack, and sending a scan.
+export async function artifactList() {
+  const res = await fetch('/api/artifact', { credentials: 'same-origin' });
+  if (!res.ok) throw new Error('Could not load the artifacts.');
+  return res.json();
+}
+
+export async function artifactAdd(payload) {
+  const res = await fetch('/api/artifact', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'add', ...payload }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Could not send.');
+  return data;
+}
+
+export async function artifactDelete(id) {
+  const res = await fetch('/api/artifact', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'delete', id }),
+  });
+  if (!res.ok) throw new Error('Could not take it away.');
   return res.json();
 }
 

@@ -193,6 +193,7 @@ function renderNav() {
     <button data-view="villagers" class="${view === 'villagers' ? 'active' : ''}">Villagers${count(pendingVillagers)}</button>
     <button data-view="councils" class="${view === 'councils' ? 'active' : ''}">Councils</button>
     <button data-view="world" class="${view === 'world' ? 'active' : ''}">The poison</button>
+    <button data-view="artifacts" class="${view === 'artifacts' ? 'active' : ''}">Artifacts${count((data.artifacts || []).filter((a) => a.status === 'pending').length)}</button>
     <button data-view="students" class="${view === 'students' ? 'active' : ''}">Students</button>
     <button data-view="settings" class="${view === 'settings' ? 'active' : ''}">Settings</button>
     <a href="#" id="admin-logout">Log out</a>`;
@@ -207,6 +208,67 @@ function renderNav() {
     e.preventDefault();
     logout();
   });
+}
+
+// The artifacts the students have drawn: approve them, and choose the rank on the
+// XP ladder where each one unlocks in the backpacks.
+function renderArtifacts() {
+  const list = data.artifacts || [];
+  const ranks = (selected) => Array.from({ length: 20 }, (_, i) => `<option value="${i + 1}" ${i + 1 === selected ? 'selected' : ''}>Rank ${i + 1}</option>`).join('');
+  const cards = list
+    .map(
+      (a) => `<article class="admin-card artifact-admin" data-artifact="${h(a.id)}">
+        <img class="artifact-img" src="${h(mediaUrl(a.storage_path))}" alt="">
+        <div>
+          <input type="text" data-field="name" value="${h(a.name)}" maxlength="40">
+          <textarea data-field="description" rows="2" maxlength="200">${h(a.description)}</textarea>
+          <p class="muted">By ${h((data.owners || {})[a.owner] || 'a student')}</p>
+          <p>
+            <select data-field="status">
+              <option value="pending" ${a.status === 'pending' ? 'selected' : ''}>Waiting</option>
+              <option value="approved" ${a.status === 'approved' ? 'selected' : ''}>Approved</option>
+              <option value="rejected" ${a.status === 'rejected' ? 'selected' : ''}>Not approved</option>
+            </select>
+            <select data-field="rank_required">${ranks(a.rank_required)}</select>
+            <button class="small-btn" data-save-artifact>Save</button>
+            <button class="small-btn danger" data-delete-artifact>Delete</button>
+          </p>
+        </div>
+      </article>`
+    )
+    .join('');
+  app.innerHTML = `
+    <p id="admin-flash" class="admin-flash" hidden></p>
+    <section class="admin-settings">
+      <h2>Artifacts</h2>
+      <p class="muted">Drawings the students have scanned. <strong>Approved</strong> artifacts unlock in the backpack of every player who reaches the rank you choose on the XP ladder (20 ranks). Put the best ones high up.</p>
+      ${cards || '<p class="muted">No artifacts yet.</p>'}
+    </section>`;
+  app.querySelectorAll('[data-save-artifact]').forEach((btn) =>
+    btn.addEventListener('click', async () => {
+      const card = btn.closest('[data-artifact]');
+      const val = (f) => card.querySelector(`[data-field="${f}"]`).value;
+      try {
+        await api('POST', { action: 'set-artifact', id: card.dataset.artifact, name: val('name'), description: val('description'), status: val('status'), rank_required: Number(val('rank_required')) });
+        await reload();
+        flash('Saved.');
+      } catch (err) {
+        if (err.message !== 'Logged out') flash(err.message, true);
+      }
+    })
+  );
+  app.querySelectorAll('[data-delete-artifact]').forEach((btn) =>
+    btn.addEventListener('click', async () => {
+      if (!confirm('Delete this artifact and its picture?')) return;
+      try {
+        await api('POST', { action: 'delete-artifact', id: btn.closest('[data-artifact]').dataset.artifact });
+        await reload();
+        flash('Deleted.');
+      } catch (err) {
+        if (err.message !== 'Logged out') flash(err.message, true);
+      }
+    })
+  );
 }
 
 // The poison of the evil villages: how far it has spread, and the controls.
@@ -415,6 +477,10 @@ function render() {
   }
   if (view === 'world') {
     renderWorld();
+    return;
+  }
+  if (view === 'artifacts') {
+    renderArtifacts();
     return;
   }
 

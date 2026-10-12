@@ -7,7 +7,11 @@
 // village at the same time, and there are at least two. It is open for half an
 // hour, and only while at least two of them are still there.
 
+const crypto = require('crypto');
+const { validFigure } = require('./figures');
+
 const FRESH_MS = 30 * 1000;
+const WORLD_FRESH_MS = 10 * 1000; // someone on the map who has not been heard from for ten seconds has gone
 const SESSION_MS = 30 * 60 * 1000;
 
 // tribeId null: the student left the villages.
@@ -73,4 +77,56 @@ async function mayChangeCouncil(supabase, tribeId, user, now = new Date()) {
   return Boolean(state.resident && state.me_here && state.session_active);
 }
 
-module.exports = { beat, stateFor, startCouncil, mayChangeCouncil, FRESH_MS, SESSION_MS };
+// ---- the world map: who is there, and where ----
+
+// A short code for a student that can be given to other students, so they can be
+// challenged without anyone learning who the student is.
+function pidOf(user) {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret || secret.length < 32) throw new Error('SESSION_SECRET env var is missing or too short');
+  return crypto.createHmac('sha256', secret).update('pid:' + user).digest('hex').slice(0, 16);
+}
+
+const fraction = (v) => (Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 1 ? Number(v) : null);
+
+// The student stands on the world map here. look is the figure (0-59) or null.
+async function beatWorld(supabase, user, { fx, fy, look }, now = new Date()) {
+  const x = fraction(fx);
+  const y = fraction(fy);
+  if (x === null || y === null) return { ok: false };
+  const { error } = await supabase
+    .from('presence')
+    .upsert({ user_id: user, tribe_id: null, fx: x, fy: y, look: validFigure(look), seen_at: now.toISOString() });
+  if (error) throw new Error(error.message);
+  return { ok: true };
+}
+
+// The other students on the world map right now: their code, the name of their
+// villager (never their own name), figure and place.
+async function worldState(supabase, user, now = new Date()) {
+  const { data: rows, error } = await supabase.from('presence').select('user_id, tribe_id, fx, fy, look, seen_at');
+  if (error) throw new Error(error.message);
+  const others = rows.filter((r) => r.user_id !== user && !r.tribe_id && r.fx !== null && r.fy !== null && now - new Date(r.seen_at) < WORLD_FRESH_MS);
+  if (!others.length) return [];
+  const { data: people, error: namesErr } = await supabase.from('characters').select('name, sprite, submitted_by').in('submitted_by', others.map((r) => r.user_id)).eq('status', 'approved');
+  if (namesErr) throw new Error(namesErr.message);
+  const first = new Map();
+  for (const c of people) if (!first.has(c.submitted_by)) first.set(c.submitted_by, c);
+  return others.map((r) => ({
+    pid: pidOf(r.user_id),
+    name: (first.get(r.user_id) || {}).name || 'A student',
+    look: r.look === null || r.look === undefined ? validFigure((first.get(r.user_id) || {}).sprite) : r.look,
+    fx: r.fx,
+    fy: r.fy,
+  }));
+}
+
+// The student a code stands for, if they are on the map right now.
+async function resolvePid(supabase, pid, now = new Date()) {
+  const { data: rows, error } = await supabase.from('presence').select('user_id, tribe_id, seen_at');
+  if (error) throw new Error(error.message);
+  const hit = rows.find((r) => !r.tribe_id && now - new Date(r.seen_at) < WORLD_FRESH_MS && pidOf(r.user_id) === String(pid || ''));
+  return hit ? hit.user_id : null;
+}
+
+module.exports = { beat, stateFor, startCouncil, mayChangeCouncil, beatWorld, worldState, resolvePid, pidOf, FRESH_MS, SESSION_MS, WORLD_FRESH_MS };

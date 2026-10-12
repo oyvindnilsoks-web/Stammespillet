@@ -1,5 +1,5 @@
 import { buildMask, connectVillages, terrainAt, MASK_COLS, MASK_ROWS } from './mask.js';
-import { shieldOf, isEnemy, villagersOf } from './data.js';
+import { shieldOf, isEnemy, villagersOf, PLAYER_FRAME } from './data.js';
 import { mediaUrl } from '../content.js';
 
 // The world map: the painted map is the ground, a small figure walks on it,
@@ -61,6 +61,7 @@ export function createWorldScene(Phaser, ctx) {
       });
 
       this.initPoison(W, H);
+      this.startPeople();
 
       // The shield of a village, when the teacher has added one, above its sign.
       const shields = this.signs
@@ -120,8 +121,32 @@ export function createWorldScene(Phaser, ctx) {
       this.cameras.main.setRoundPixels(true);
 
       this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT');
+      // While a window is open the keys are for the window: no walking, no
+      // blocked space bar, while someone types an answer.
+      const lockKeys = (open) => {
+        const kb = this.input.keyboard;
+        if (!kb) return;
+        kb.enabled = !open;
+        if (open) {
+          kb.resetKeys();
+          kb.disableGlobalCapture?.();
+        } else {
+          kb.enableGlobalCapture?.();
+        }
+      };
+      lockKeys(ctx.ui.isOpen());
+      const stopLocking = ctx.ui.onToggle(lockKeys);
+      this.events.once('shutdown', () => {
+        stopLocking();
+        const kb = this.input.keyboard;
+        if (kb) {
+          kb.enabled = true;
+          kb.enableGlobalCapture?.();
+        }
+      });
       this.onTaskKey = (e) => {
         if ((e.key === 'e' || e.key === 'E') && !e.repeat && !ctx.ui.isOpen()) this.startTask();
+        if ((e.key === 'b' || e.key === 'B') && !e.repeat && !ctx.ui.isOpen()) this.challenge(this.nearestOther());
       };
       document.addEventListener('keydown', this.onTaskKey);
       this.events.once('shutdown', () => document.removeEventListener('keydown', this.onTaskKey));
@@ -201,6 +226,86 @@ export function createWorldScene(Phaser, ctx) {
       this.events.once('shutdown', () => {
         ctx.onWorld = null;
       });
+    }
+
+    // The other students on the map: told where they are every few seconds, and
+    // drawn walking towards that place. Walk up to one to challenge them.
+    startPeople() {
+      this.others = new Map();
+      let busy = false;
+      const poll = async () => {
+        if (busy || !ctx.presence || !ctx.presence.world || !this.player) return;
+        busy = true;
+        try {
+          const look = ctx.look.texture === 'figures' ? ctx.look.frame : null;
+          const r = await ctx.presence.world(this.player.x / this.worldW, this.player.y / this.worldH, look);
+          this.syncOthers(r.players || []);
+          if (r.invite) ctx.showInvite?.(r.invite);
+          if (r.unseen > 0 && !ctx.ui.isOpen()) ctx.refreshXp?.();
+        } catch {
+          // The others are only an extra; the game goes on without them.
+        } finally {
+          busy = false;
+        }
+      };
+      poll();
+      const timer = setInterval(poll, 2500);
+      this.events.once('shutdown', () => {
+        clearInterval(timer);
+        for (const o of this.others.values()) {
+          o.sprite.destroy();
+          o.label.destroy();
+        }
+        this.others.clear();
+      });
+    }
+
+    syncOthers(list) {
+      const seen = new Set();
+      for (const p of list) {
+        seen.add(p.pid);
+        const x = p.fx * this.worldW;
+        const y = p.fy * this.worldH;
+        let o = this.others.get(p.pid);
+        if (!o) {
+          const frame = Number.isInteger(p.look) ? p.look : PLAYER_FRAME;
+          const sprite = this.add.sprite(x, y, Number.isInteger(p.look) ? 'figures' : 'heroes', frame).setOrigin(0.5, 1).setScale(3).setDepth(5.9);
+          const label = this.add
+            .text(x, y - 56, p.name, { fontFamily: 'Georgia, serif', fontSize: '14px', color: '#f2e9da', stroke: '#1b1712', strokeThickness: 4 })
+            .setOrigin(0.5, 1)
+            .setDepth(8);
+          o = { pid: p.pid, name: p.name, sprite, label, x, y };
+          this.others.set(p.pid, o);
+        }
+        o.name = p.name;
+        o.tx = x;
+        o.ty = y;
+      }
+      for (const [pid, o] of this.others) {
+        if (seen.has(pid)) continue;
+        o.sprite.destroy();
+        o.label.destroy();
+        this.others.delete(pid);
+      }
+    }
+
+    // The student closest to the figure, if close enough to talk to.
+    nearestOther() {
+      let best = null;
+      let bestDistance = 150;
+      for (const o of this.others.values()) {
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, o.sprite.x, o.sprite.y);
+        if (d < bestDistance) {
+          bestDistance = d;
+          best = o;
+        }
+      }
+      return best;
+    }
+
+    challenge(other) {
+      if (!other || ctx.ui.isOpen()) return;
+      ctx.challengePlayer?.(other.pid);
     }
 
     // Open the tasks for the spot where the figure stands.
@@ -315,7 +420,15 @@ export function createWorldScene(Phaser, ctx) {
       if (inPoison) p.setTint(0x9fe08a);
       else p.clearTint();
       // Standing in poison: a button to clean it by solving tasks.
-      ctx.ui.setPrompt(inPoison && !ctx.ui.isOpen() ? 'You are standing in poison. Press E or click here to clean it with tasks.' : null, () => this.startTask());
+      for (const o of this.others.values()) {
+        o.sprite.x += ((o.tx ?? o.sprite.x) - o.sprite.x) * 0.12;
+        o.sprite.y += ((o.ty ?? o.sprite.y) - o.sprite.y) * 0.12;
+        o.label.setPosition(o.sprite.x, o.sprite.y - 56);
+      }
+      const near = this.nearestOther();
+      const open = ctx.ui.isOpen();
+      if (near && !open) ctx.ui.setPrompt(`Challenge ${near.name} to a word battle (B or click here)`, () => this.challenge(near));
+      else ctx.ui.setPrompt(inPoison && !open ? 'You are standing in poison. Press E or click here to clean it with tasks.' : null, () => this.startTask());
       this.animate(time, Boolean(vx || vy), this.terrain(p.x, p.y));
 
       if (time > this.cooldownUntil && !ctx.ui.isOpen()) {

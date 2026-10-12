@@ -2,6 +2,7 @@ const { parseCookies } = require('./_lib/cookies');
 const { verifySessionToken, SESSION_COOKIE, withSessionRenewal } = require('./_lib/session');
 const { getSupabaseAdmin } = require('./_lib/supabaseAdmin');
 const presence = require('./_lib/presence');
+const battle = require('./_lib/battle');
 
 // Where the student is standing, and the gathering of the villagers of a village
 // (see _lib/presence.js). The game sends POST every few seconds while the student
@@ -35,6 +36,16 @@ exports.handler = withSessionRenewal(async (event) => {
   try {
     const supabase = getSupabaseAdmin();
 
+    // The world map: who else is there, a challenge for this student, and whether
+    // a battle result is waiting to be shown.
+    const worldReply = async () => ({
+      players: await presence.worldState(supabase, user),
+      invite: await battle.pendingInvite(supabase, user),
+      unseen: await battle.unseenCount(supabase, user),
+    });
+
+    if (event.httpMethod === 'GET' && (event.queryStringParameters || {}).world) return json(200, await worldReply());
+
     if (event.httpMethod === 'GET') {
       const tribeId = String((event.queryStringParameters || {}).tribe_id || '');
       if (!(await approvedVillage(supabase, tribeId))) return json(404, { error: 'Unknown village' });
@@ -47,6 +58,11 @@ exports.handler = withSessionRenewal(async (event) => {
         body = JSON.parse(event.body || '{}');
       } catch {
         return json(400, { error: 'Invalid JSON' });
+      }
+      if (body.world) {
+        const moved = await presence.beatWorld(supabase, user, body);
+        if (!moved.ok) return json(400, { error: 'Invalid place' });
+        return json(200, await worldReply());
       }
       if (body.action === 'start-council') {
         if (!(await approvedVillage(supabase, body.tribe_id))) return json(404, { error: 'Unknown village' });

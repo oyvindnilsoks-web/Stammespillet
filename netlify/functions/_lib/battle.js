@@ -1,4 +1,5 @@
 const tasks = require('./tasks');
+const { rankOf } = require('./ladder');
 
 // Glossary battles. A student starts a battle and plays it at once. It waits for
 // someone else, who gets the same questions. The one with the most right answers
@@ -16,6 +17,7 @@ const OPEN_MS = 24 * 60 * 60 * 1000; // a waiting battle lasts a day
 const TAKE_OVER_MS = 10 * 60 * 1000; // someone who accepted but never finished loses the place
 const MAX_OPEN = 3; // waiting battles one student can have
 const MAX_PER_DAY = 10; // battles a student can take part in each day
+const INVITE_MS = 2 * 60 * 1000; // a student challenged on the map has two minutes to answer
 
 // Who wins: 'a', 'b' or 'draw'. a and b are { score, ms }.
 function decide(a, b) {
@@ -42,6 +44,9 @@ async function xpOf(supabase, user) {
   if (error) throw new Error(error.message);
   return data || { xp: 0, wins: 0, losses: 0, draws: 0 };
 }
+
+// The XP with the place on the ladder.
+const withRank = (stats) => ({ ...stats, rank: rankOf(stats.xp) });
 
 async function addXp(supabase, user, gain, result) {
   const row = await xpOf(supabase, user);
@@ -75,6 +80,7 @@ async function list(supabase, user, now = new Date()) {
   if (error) throw new Error(error.message);
 
   const free = (d) =>
+    !d.direct &&
     d.challenger !== user &&
     d.a_score !== null &&
     now - new Date(d.created_at) < OPEN_MS &&
@@ -96,10 +102,10 @@ async function list(supabase, user, now = new Date()) {
     };
   };
   return {
-    stats: await xpOf(supabase, user),
+    stats: withRank(await xpOf(supabase, user)),
     questions: QUESTIONS,
     open: open.map((d) => ({ id: d.id, from: names.get(d.challenger) || 'A student' })),
-    waiting: mine.filter((d) => d.status === 'open' && d.challenger === user && d.a_score !== null && now - new Date(d.created_at) < OPEN_MS).map((d) => ({ id: d.id, score: d.a_score })),
+    waiting: mine.filter((d) => !d.direct && d.status === 'open' && d.challenger === user && d.a_score !== null && now - new Date(d.created_at) < OPEN_MS).map((d) => ({ id: d.id, score: d.a_score })),
     recent: done.map(view),
     unseen: done.filter((d) => d.challenger === user && !d.a_seen).map(view),
   };
@@ -129,20 +135,77 @@ async function challenge(supabase, user, words, now = new Date()) {
   return { ok: true, id: data.id, questions: set.map((q) => ({ prompt: q.prompt })) };
 }
 
+// A student on the map challenges another student, who is on the map too. Both
+// get the same questions, at the same time. target is the other student's user id.
+async function challengePlayer(supabase, user, target, words, now = new Date()) {
+  if (!target || target === user) return { ok: false, status: 404, error: 'That student has left the map.' };
+  const { openOwn, todayCount } = await limits(supabase, user, now);
+  if (openOwn >= MAX_OPEN) return { ok: false, status: 429, error: `You already have ${MAX_OPEN} battles waiting. Wait for someone to take them.` };
+  if (todayCount >= MAX_PER_DAY) return { ok: false, status: 429, error: 'That is enough battles for today. Come back tomorrow.' };
+  const mine = await myDuels(supabase, user);
+  if (mine.some((d) => d.direct && d.challenger === user && d.opponent === target && d.status === 'open' && !d.b_started_at && now - new Date(d.created_at) < INVITE_MS)) {
+    return { ok: false, status: 409, error: 'You have already challenged them. Wait for their answer.' };
+  }
+  const set = tasks.vocabSet(words, QUESTIONS);
+  if (set.length < QUESTIONS) return { ok: false, status: 409, error: 'There are not enough words for a battle.' };
+  const { data, error } = await supabase
+    .from('duels')
+    .insert({ challenger: user, opponent: target, direct: true, questions: set, a_started_at: now.toISOString(), created_at: now.toISOString() })
+    .select('id')
+    .single();
+  if (error) throw new Error(error.message);
+  return { ok: true, id: data.id, questions: set.map((q) => ({ prompt: q.prompt })) };
+}
+
+// The challenge a student has been given on the map, if there is one waiting.
+async function pendingInvite(supabase, user, now = new Date()) {
+  const { data, error } = await supabase.from('duels').select('*').eq('opponent', user);
+  if (error) throw new Error(error.message);
+  const waiting = data
+    .filter((d) => d.direct && d.status === 'open' && !d.b_started_at && now - new Date(d.created_at) < INVITE_MS)
+    .sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)))[0];
+  if (!waiting) return null;
+  const names = await namesOf(supabase, [waiting.challenger]);
+  return { id: waiting.id, from: names.get(waiting.challenger) || 'A student' };
+}
+
+// Says no to a challenge from the map.
+async function decline(supabase, user, id) {
+  const { data: d, error } = await supabase.from('duels').select('*').eq('id', String(id || '')).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!d || !d.direct || d.opponent !== user || d.status !== 'open' || d.b_started_at) return { ok: false, status: 404, error: 'No such challenge.' };
+  const { error: upErr } = await supabase.from('duels').update({ status: 'cancelled' }).eq('id', d.id);
+  if (upErr) throw new Error(upErr.message);
+  return { ok: true };
+}
+
+// How many results of battles the student started have not been shown to them yet.
+async function unseenCount(supabase, user) {
+  const { data, error } = await supabase.from('duels').select('id, status, a_seen').eq('challenger', user);
+  if (error) throw new Error(error.message);
+  return data.filter((d) => d.status === 'done' && !d.a_seen).length;
+}
+
 // Takes a waiting battle: the same questions as the one who started it.
 async function accept(supabase, user, id, now = new Date()) {
   const { data: d, error } = await supabase.from('duels').select('*').eq('id', String(id || '')).maybeSingle();
   if (error) throw new Error(error.message);
-  if (!d || d.status !== 'open' || d.a_score === null || now - new Date(d.created_at) >= OPEN_MS) return { ok: false, status: 404, error: 'This battle is not there any more.' };
+  if (!d || d.status !== 'open' || (d.a_score === null && !d.direct) || now - new Date(d.created_at) >= OPEN_MS) return { ok: false, status: 404, error: 'This battle is not there any more.' };
   if (d.challenger === user) return { ok: false, status: 409, error: 'You cannot take your own battle.' };
-  const taken = d.opponent && !(d.b_score === null && now - new Date(d.b_started_at) > TAKE_OVER_MS);
+  if (d.direct) {
+    if (d.opponent !== user) return { ok: false, status: 403, error: 'This challenge is for someone else.' };
+    if (!d.b_started_at && now - new Date(d.created_at) >= INVITE_MS) return { ok: false, status: 404, error: 'The challenge has run out.' };
+  }
+  const taken = !d.direct && d.opponent && !(d.b_score === null && now - new Date(d.b_started_at) > TAKE_OVER_MS);
   if (taken && d.opponent !== user) return { ok: false, status: 409, error: 'Someone else took this battle.' };
   if (d.opponent !== user) {
     const { todayCount } = await limits(supabase, user, now);
     if (todayCount >= MAX_PER_DAY) return { ok: false, status: 429, error: 'That is enough battles for today. Come back tomorrow.' };
   }
-  const { error: upErr } = await supabase.from('duels').update({ opponent: user, b_started_at: now.toISOString() }).eq('id', d.id);
-  if (upErr) throw new Error(upErr.message);
+  if (!d.b_started_at || d.opponent !== user || !d.direct) {
+    const { error: upErr } = await supabase.from('duels').update({ opponent: user, b_started_at: now.toISOString() }).eq('id', d.id);
+    if (upErr) throw new Error(upErr.message);
+  }
   return { ok: true, id: d.id, questions: d.questions.map((q) => ({ prompt: q.prompt })) };
 }
 
@@ -161,37 +224,46 @@ async function submit(supabase, user, id, answers, now = new Date()) {
   const score = d.questions.filter((q, i) => tasks.isCorrect(answers[i], q.answer)).length;
   const ms = Math.min(MAX_MS, Math.max(0, now - new Date(isA ? d.a_started_at : d.b_started_at)));
 
-  if (isA) {
-    const { error: upErr } = await supabase.from('duels').update({ a_score: score, a_ms: ms }).eq('id', d.id);
+  // Whoever hands in second finishes the battle. (In a battle taken from the list
+  // the starter has always played first; on the map both play at the same time.)
+  const aScore = isA ? score : d.a_score;
+  const aMs = isA ? ms : d.a_ms;
+  const bScore = isA ? d.b_score : score;
+  const bMs = isA ? d.b_ms : ms;
+  if (aScore === null || bScore === null) {
+    const own = isA ? { a_score: score, a_ms: ms } : { b_score: score, b_ms: ms };
+    const { error: upErr } = await supabase.from('duels').update(own).eq('id', d.id);
     if (upErr) throw new Error(upErr.message);
     return { ok: true, finished: false, score, total: d.questions.length };
   }
 
-  const verdict = decide({ score: d.a_score, ms: d.a_ms }, { score, ms });
-  const winner = verdict === 'draw' ? 'draw' : verdict === 'a' ? d.challenger : user;
+  const verdict = decide({ score: aScore, ms: aMs }, { score: bScore, ms: bMs });
+  const winner = verdict === 'draw' ? 'draw' : verdict === 'a' ? d.challenger : d.opponent;
   const { error: upErr } = await supabase
     .from('duels')
-    .update({ b_score: score, b_ms: ms, status: 'done', winner, finished_at: now.toISOString() })
+    .update({ a_score: aScore, a_ms: aMs, b_score: bScore, b_ms: bMs, status: 'done', winner, finished_at: now.toISOString() })
     .eq('id', d.id);
   if (upErr) throw new Error(upErr.message);
 
   const gain = (who, result, total) => (result === 'win' ? XP_WIN + (total === d.questions.length ? XP_PERFECT : 0) : result === 'draw' ? XP_DRAW : XP_LOSS);
   const resultFor = (u) => (winner === 'draw' ? 'draw' : winner === u ? 'win' : 'loss');
-  const aResult = resultFor(d.challenger);
-  const bResult = resultFor(user);
-  const aGain = gain(d.challenger, aResult, d.a_score);
-  const bGain = gain(user, bResult, score);
-  await addXp(supabase, d.challenger, aGain, aResult);
-  const mine = await addXp(supabase, user, bGain, bResult);
-  const names = await namesOf(supabase, [d.challenger]);
-  return { ok: true, finished: true, score, total: d.questions.length, vs: names.get(d.challenger) || 'A student', vs_score: d.a_score, result: bResult, xp: bGain, stats: { xp: mine.xp, wins: mine.wins, losses: mine.losses, draws: mine.draws } };
+  const other = isA ? d.opponent : d.challenger;
+  const otherScore = isA ? bScore : aScore;
+  const myResult = resultFor(user);
+  const otherResult = resultFor(other);
+  const myGain = gain(user, myResult, score);
+  const otherGain = gain(other, otherResult, otherScore);
+  await addXp(supabase, other, otherGain, otherResult);
+  const mine = await addXp(supabase, user, myGain, myResult);
+  const names = await namesOf(supabase, [other]);
+  return { ok: true, finished: true, score, total: d.questions.length, vs: names.get(other) || 'A student', vs_score: otherScore, result: myResult, xp: myGain, stats: withRank({ xp: mine.xp, wins: mine.wins, losses: mine.losses, draws: mine.draws }) };
 }
 
-async function cancel(supabase, user, id) {
+async function cancel(supabase, user, id, now = new Date()) {
   const { data: d, error } = await supabase.from('duels').select('*').eq('id', String(id || '')).maybeSingle();
   if (error) throw new Error(error.message);
   if (!d || d.challenger !== user || d.status !== 'open') return { ok: false, status: 404, error: 'No such battle.' };
-  if (d.opponent && d.b_score === null) return { ok: false, status: 409, error: 'Someone is playing this battle right now.' };
+  if (d.b_started_at && d.b_score === null && now - new Date(d.b_started_at) < TAKE_OVER_MS) return { ok: false, status: 409, error: 'Someone is playing this battle right now.' };
   const { error: upErr } = await supabase.from('duels').update({ status: 'cancelled' }).eq('id', d.id);
   if (upErr) throw new Error(upErr.message);
   return { ok: true };
@@ -208,4 +280,4 @@ async function markSeen(supabase, user) {
   return { ok: true };
 }
 
-module.exports = { decide, list, challenge, accept, submit, cancel, markSeen, xpOf, QUESTIONS, XP_WIN, XP_PERFECT, XP_DRAW, XP_LOSS, MAX_OPEN, MAX_PER_DAY, TAKE_OVER_MS, OPEN_MS };
+module.exports = { decide, list, challenge, challengePlayer, pendingInvite, decline, unseenCount, accept, submit, cancel, markSeen, xpOf, INVITE_MS, QUESTIONS, XP_WIN, XP_PERFECT, XP_DRAW, XP_LOSS, MAX_OPEN, MAX_PER_DAY, TAKE_OVER_MS, OPEN_MS };

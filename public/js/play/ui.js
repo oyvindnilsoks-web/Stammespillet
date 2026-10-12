@@ -32,6 +32,10 @@ export function createUi(wrap) {
   const overlay = wrap.querySelector('#play-overlay');
   let onClose = null;
   let onPrompt = null;
+  // The game listens for these when a window opens or closes: while a window is
+  // open the keys are for the window (typing an answer), not for the game.
+  const toggleListeners = new Set();
+  const toggled = () => toggleListeners.forEach((fn) => fn(!overlay.hidden));
   prompt.addEventListener('click', () => onPrompt && onPrompt());
 
   function close() {
@@ -40,6 +44,7 @@ export function createUi(wrap) {
     overlay.innerHTML = '';
     const done = onClose;
     onClose = null;
+    toggled();
     if (done) done();
   }
 
@@ -47,6 +52,7 @@ export function createUi(wrap) {
     overlay.innerHTML = `<div class="play-window">${html}</div>`;
     overlay.hidden = false;
     onClose = closed || null;
+    toggled();
     overlay.querySelector('[data-close]')?.addEventListener('click', close);
     overlay.querySelector('[data-close]')?.focus();
   }
@@ -61,6 +67,11 @@ export function createUi(wrap) {
 
   return {
     isOpen: () => !overlay.hidden,
+    // Runs fn(open) when a window opens or closes. Returns a way to stop listening.
+    onToggle(fn) {
+      toggleListeners.add(fn);
+      return () => toggleListeners.delete(fn);
+    },
     close,
     setHud(html) {
       hud.innerHTML = html;
@@ -203,7 +214,45 @@ export function createUi(wrap) {
     // The glossary battle window. api = { list(), start(), accept(id), submit(id, answers),
     // cancel(id), seen() }: what the hub shows, and the moves. onChange runs when the
     // XP may have changed.
-    openBattle(api, onChange, closed) {
+    // The backpack: the rank on the XP ladder, and the artifacts. Those that have
+    // been unlocked show their picture; the others are locked places with the rank
+    // that opens them. data comes from /api/artifact.
+    openBackpack(data, closed) {
+      const r = data.rank;
+      const names = data.ladder.names;
+      const bar = r.next === null ? 100 : Math.round(((r.xp - r.from) / (r.next - r.from)) * 100);
+      const progress = r.next === null ? 'The highest rank.' : `${r.toNext} XP to rank ${r.rank + 1} (${escapeHtml(names[r.rank])})`;
+      const items = data.backpack.length
+        ? data.backpack
+            .map((a) =>
+              a.locked
+                ? `<li class="pack-item locked"><div class="pack-lock" aria-hidden="true">🔒</div><strong>Locked</strong><span class="muted">Unlocks at rank ${a.rank_required} (${escapeHtml(names[a.rank_required - 1] || '')})</span></li>`
+                : `<li class="pack-item"><img src="${escapeHtml(mediaUrl(a.storage_path))}" alt=""><strong>${escapeHtml(a.name)}</strong><span class="muted">${escapeHtml(a.description || '')}</span></li>`
+            )
+            .join('')
+        : '<li class="muted">There are no artifacts yet. When the students have drawn some and the teacher has approved them, they appear here.</li>';
+      show(
+        `<div class="play-window-head"><div><h2>Backpack</h2><p class="muted">Rank ${r.rank} · ${escapeHtml(r.name)}</p></div><button class="small-btn" data-close>Close</button></div>
+         <div class="rank-bar" role="img" aria-label="Progress to the next rank"><div style="width:${bar}%"></div></div>
+         <p class="muted">${r.xp} XP · ${progress}</p>
+         <ul class="pack-grid">${items}</ul>`,
+        closed
+      );
+    },
+
+    // A challenge from another student on the map: take it or say no.
+    openInvite(invite, accept, decline, closed) {
+      show(
+        `<div class="play-window-head"><div><h2>${escapeHtml(invite.from)} challenges you!</h2><p class="muted">A word battle: the same words, at the same time</p></div></div>
+         <div class="play-actions"><button class="choice-btn" id="invite-yes">Take the challenge</button><button class="small-btn" id="invite-no">No thanks</button></div>`,
+        closed
+      );
+      overlay.querySelector('#invite-yes').addEventListener('click', accept);
+      overlay.querySelector('#invite-no').addEventListener('click', decline);
+    },
+
+    // firstBattle: a battle that is being started (a promise), to play at once.
+    openBattle(api, onChange, closed, firstBattle = null) {
       const result = (r) => (r === 'win' ? 'You won' : r === 'draw' ? 'Draw' : 'You lost');
       const frame = (inner) =>
         show(
@@ -253,7 +302,7 @@ export function createUi(wrap) {
       const finished = (r) => {
         const text = r.finished
           ? `<h3>${result(r.result)}!</h3><p>You got <strong>${r.score}</strong> of ${r.total} right. ${escapeHtml(r.vs)} got <strong>${r.vs_score}</strong>.</p><p>+${r.xp} XP. You now have <strong>${r.stats.xp} XP</strong> (${r.stats.wins} won, ${r.stats.losses} lost, ${r.stats.draws} draws).</p>`
-          : `<h3>Done!</h3><p>You got <strong>${r.score}</strong> of ${r.total} right. The battle waits for another student to take it. When they have, you see how it went here.</p>`;
+          : `<h3>Done!</h3><p>You got <strong>${r.score}</strong> of ${r.total} right. When the other student has handed in too, you see who won. The result comes up in the game.</p>`;
         frame(`<div class="play-answer">${text}</div><div class="play-actions"><button class="choice-btn" id="battle-back">Back to the battles</button></div>`);
         overlay.querySelector('#battle-back').addEventListener('click', hub);
         onChange();
@@ -302,7 +351,20 @@ export function createUi(wrap) {
           })
         );
       };
-      hub();
+      if (firstBattle) {
+        frame('<p class="muted">Getting the words…</p>');
+        firstBattle
+          .then((b) => {
+            if (b.ok) playQuiz(b, finished);
+            else {
+              frame(`<p class="error">${escapeHtml(b.error || 'Could not start.')}</p><div class="play-actions"><button class="choice-btn" id="battle-back">Back</button></div>`);
+              overlay.querySelector('#battle-back').addEventListener('click', hub);
+            }
+          })
+          .catch(() => frame('<p class="error">Something went wrong. Try again.</p>'));
+      } else {
+        hub();
+      }
     },
 
     // Something the player finds or hears: a title, who it is for, and the text.

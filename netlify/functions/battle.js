@@ -3,6 +3,7 @@ const { verifySessionToken, SESSION_COOKIE, withSessionRenewal } = require('./_l
 const { getSupabaseAdmin } = require('./_lib/supabaseAdmin');
 const battle = require('./_lib/battle');
 const world = require('./_lib/world');
+const presence = require('./_lib/presence');
 
 // Glossary battles between students (see _lib/battle.js). It needs a login. The
 // questions come without their answers.
@@ -44,6 +45,13 @@ exports.handler = withSessionRenewal(async (event) => {
         const { words } = await world.loadTaskSettings(supabase);
         return reply(await battle.challenge(supabase, user, words));
       }
+      case 'challenge-player': {
+        const target = await presence.resolvePid(supabase, body.pid);
+        const { words } = await world.loadTaskSettings(supabase);
+        return reply(await battle.challengePlayer(supabase, user, target, words));
+      }
+      case 'decline':
+        return reply(await battle.decline(supabase, user, body.id));
       case 'accept':
         return reply(await battle.accept(supabase, user, body.id));
       case 'submit':
