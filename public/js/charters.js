@@ -34,12 +34,6 @@ const VILLAGE = [
     ],
     fields: [
       { key: 'place', type: 'area' },
-      {
-        key: 'enemies',
-        label: 'Enemy villages (write their names). Your group cannot visit them in the game.',
-        labelNo: 'Fiendelandsbyer (skriv navnene). Gruppa deres kan ikke besøke dem i spillet.',
-        type: 'text',
-      },
     ],
   },
   {
