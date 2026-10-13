@@ -84,6 +84,25 @@ export async function sendSubmission(payload) {
   return data;
 }
 
+// Who has the game open: a heartbeat from the page (answers with how many are online),
+// and the list for the Online button.
+export async function onlineBeat() {
+  const res = await fetch('/api/presence', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ online: true }),
+  });
+  if (!res.ok) throw new Error('Could not tell that you are here.');
+  return res.json();
+}
+
+export async function onlineList() {
+  const res = await fetch('/api/presence?online=1', { credentials: 'same-origin' });
+  if (!res.ok) throw new Error('Could not see who is online.');
+  return res.json();
+}
+
 // Where the student stands (a heartbeat while inside a village; null when they
 // leave), the gathering of the villagers of a village, and starting the council.
 export async function presenceBeat(tribeId) {

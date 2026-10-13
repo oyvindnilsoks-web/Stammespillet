@@ -77,6 +77,48 @@ async function mayChangeCouncil(supabase, tribeId, user, now = new Date()) {
   return Boolean(state.resident && state.me_here && state.session_active);
 }
 
+// ---- who is online ----
+
+const ONLINE_FRESH_MS = 45 * 1000; // the page sends a heartbeat every 30 seconds
+
+// The student has the game open.
+async function beatOnline(supabase, user, now = new Date()) {
+  const { error } = await supabase.from('online').upsert({ user_id: user, seen_at: now.toISOString() });
+  if (error) throw new Error(error.message);
+}
+
+// Everyone who has the game open: the name of their villager (never their own name),
+// where they are, and whether it is the student asking. Where is 'on the map', 'in <village>'
+// or 'in the menu' (reading, writing, drawing).
+async function onlineList(supabase, user, now = new Date()) {
+  const { data: rows, error } = await supabase.from('online').select('user_id, seen_at');
+  if (error) throw new Error(error.message);
+  const here = rows.filter((r) => now - new Date(r.seen_at) < ONLINE_FRESH_MS);
+  if (!here.length) return [];
+  const ids = here.map((r) => r.user_id);
+  const [people, spots, tribes] = await Promise.all([
+    supabase.from('characters').select('name, submitted_by').in('submitted_by', ids).eq('status', 'approved'),
+    supabase.from('presence').select('user_id, tribe_id, fx, fy, seen_at').in('user_id', ids),
+    supabase.from('tribes').select('id, name').eq('status', 'approved'),
+  ]);
+  const err = people.error || spots.error || tribes.error;
+  if (err) throw new Error(err.message);
+  const firstName = new Map();
+  for (const c of people.data) if (!firstName.has(c.submitted_by)) firstName.set(c.submitted_by, c.name);
+  const villageName = new Map(tribes.data.map((t) => [t.id, t.name]));
+  const spotOf = new Map(spots.data.map((s) => [s.user_id, s]));
+
+  const where = (id) => {
+    const s = spotOf.get(id);
+    if (s && s.tribe_id && now - new Date(s.seen_at) < FRESH_MS) return `in ${villageName.get(s.tribe_id) || 'a village'}`;
+    if (s && !s.tribe_id && s.fx !== null && now - new Date(s.seen_at) < WORLD_FRESH_MS) return 'on the map';
+    return 'in the menu';
+  };
+  return here
+    .map((r) => ({ name: firstName.get(r.user_id) || 'A student', where: where(r.user_id), me: r.user_id === user }))
+    .sort((a, b) => Number(b.me) - Number(a.me) || a.name.localeCompare(b.name));
+}
+
 // ---- the world map: who is there, and where ----
 
 // A short code for a student that can be given to other students, so they can be
@@ -129,4 +171,4 @@ async function resolvePid(supabase, pid, now = new Date()) {
   return hit ? hit.user_id : null;
 }
 
-module.exports = { beat, stateFor, startCouncil, mayChangeCouncil, beatWorld, worldState, resolvePid, pidOf, FRESH_MS, SESSION_MS, WORLD_FRESH_MS };
+module.exports = { beat, stateFor, startCouncil, mayChangeCouncil, beatWorld, worldState, resolvePid, pidOf, beatOnline, onlineList, ONLINE_FRESH_MS, FRESH_MS, SESSION_MS, WORLD_FRESH_MS };

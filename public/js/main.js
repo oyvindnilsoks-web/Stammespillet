@@ -1,4 +1,4 @@
-import { getSession, nameLogin, loginUrl, logoutUrl, loadProgress, saveProgress } from './api.js';
+import { getSession, nameLogin, loginUrl, logoutUrl, loadProgress, saveProgress, onlineBeat, onlineList } from './api.js';
 import { loadAllContent } from './content.js';
 import { renderLexicon } from './lexicon.js';
 import { renderGallery } from './gallery.js';
@@ -17,23 +17,91 @@ let content = null; // { tribes, characters, scenes, media }
 let state = null; // { chosen_character, current_scene, flags, visited_tribes }
 let stopPlay = null; // stops the running game when the student goes somewhere else
 
+// The Online button: the page says every 30 seconds that it is open, and is told how
+// many are online. The button opens a list of who they are and where.
+let onlineTimer = null;
+function stopOnline() {
+  clearInterval(onlineTimer);
+  onlineTimer = null;
+}
+
+async function beatOnline() {
+  try {
+    const r = await onlineBeat();
+    const badge = document.getElementById('online-count');
+    if (badge) badge.textContent = String(r.count);
+  } catch {
+    // The count is only an extra.
+  }
+}
+
+function startOnline() {
+  if (onlineTimer) return;
+  beatOnline();
+  onlineTimer = setInterval(beatOnline, 30000);
+}
+
+function openOnlineDialog() {
+  if (document.getElementById('online-dialog')) return;
+  const dialog = document.createElement('div');
+  dialog.id = 'online-dialog';
+  dialog.className = 'online-dialog';
+  dialog.setAttribute('role', 'dialog');
+  dialog.setAttribute('aria-modal', 'true');
+  dialog.innerHTML = `<div class="online-window"><div class="online-head"><h2>Online now</h2><button type="button" class="small-btn" data-close>Close</button></div><ul class="online-list" id="online-list"><li class="muted">Loading…</li></ul><p class="muted">You see the names of the villagers, not the names of the students.</p></div>`;
+  document.body.appendChild(dialog);
+  let timer = null;
+  const close = () => {
+    clearInterval(timer);
+    document.removeEventListener('keydown', onKey);
+    dialog.remove();
+  };
+  const onKey = (e) => {
+    if (e.key === 'Escape') close();
+  };
+  document.addEventListener('keydown', onKey);
+  dialog.addEventListener('click', (e) => {
+    if (e.target === dialog || e.target.closest('[data-close]')) close();
+  });
+  const fill = async () => {
+    const list = dialog.querySelector('#online-list');
+    try {
+      const { players } = await onlineList();
+      list.innerHTML = players.length
+        ? players.map((p) => `<li><strong>${escapeHtml(p.name)}${p.me ? ' (you)' : ''}</strong> <span class="muted">${escapeHtml(p.where)}</span></li>`).join('')
+        : '<li class="muted">Nobody is online.</li>';
+      const badge = document.getElementById('online-count');
+      if (badge) badge.textContent = String(players.length);
+    } catch {
+      list.innerHTML = '<li class="error">Could not see who is online.</li>';
+    }
+  };
+  fill();
+  timer = setInterval(fill, 8000);
+  dialog.querySelector('[data-close]').focus();
+}
+
 function renderNav(authenticated, displayTag) {
   if (!authenticated) {
+    stopOnline();
     nav.innerHTML = '';
     return;
   }
+  startOnline();
   nav.innerHTML = `
     <span class="muted">Logged in${displayTag ? ` (${escapeHtml(displayTag)})` : ''}</span>
     <button id="nav-contribute">Contribute</button>
     <button id="nav-play">Play</button>
     <button id="nav-lexicon">Clan Lexicon</button>
     <button id="nav-gallery">Gallery</button>
+    <button id="nav-online" title="Who is online now">Online <span class="online-badge" id="online-count">·</span></button>
     <a id="nav-logout" href="${logoutUrl()}">Log out</a>
   `;
   document.getElementById('nav-contribute').addEventListener('click', showContribute);
   document.getElementById('nav-play').addEventListener('click', showPlay);
   document.getElementById('nav-lexicon').addEventListener('click', showLexicon);
   document.getElementById('nav-gallery').addEventListener('click', showGallery);
+  document.getElementById('nav-online').addEventListener('click', openOnlineDialog);
 }
 
 const LOGIN_ERRORS = {

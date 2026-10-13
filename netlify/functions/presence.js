@@ -45,6 +45,7 @@ exports.handler = withSessionRenewal(async (event) => {
     });
 
     if (event.httpMethod === 'GET' && (event.queryStringParameters || {}).world) return json(200, await worldReply());
+    if (event.httpMethod === 'GET' && (event.queryStringParameters || {}).online) return json(200, { players: await presence.onlineList(supabase, user) });
 
     if (event.httpMethod === 'GET') {
       const tribeId = String((event.queryStringParameters || {}).tribe_id || '');
@@ -58,6 +59,12 @@ exports.handler = withSessionRenewal(async (event) => {
         body = JSON.parse(event.body || '{}');
       } catch {
         return json(400, { error: 'Invalid JSON' });
+      }
+      // The page is open: counts for the Online button in the menu bar.
+      if (body.online) {
+        await presence.beatOnline(supabase, user);
+        const list = await presence.onlineList(supabase, user);
+        return json(200, { ok: true, count: list.length });
       }
       if (body.world) {
         const moved = await presence.beatWorld(supabase, user, body);
