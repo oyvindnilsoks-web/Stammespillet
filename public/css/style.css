@@ -715,3 +715,11 @@ main.wide { max-width: 1000px; }
 .online-head h2 { margin: 0; }
 .online-list { list-style: none; margin: 0.8rem 0; padding: 0; display: grid; gap: 0.4rem; }
 .online-list li { display: flex; justify-content: space-between; gap: 0.8rem; }
+
+/* Talking to a student on the map with ready-made sentences */
+.chat-log { display: grid; gap: 0.4rem; max-height: 14rem; overflow-y: auto; margin: 0.8rem 0; padding: 0.6rem 0.7rem; background: var(--bg); border-radius: 8px; }
+.chat-line { margin: 0; padding: 0.35rem 0.6rem; border-radius: 8px; max-width: 85%; }
+.chat-line.mine { justify-self: end; background: var(--panel); }
+.chat-line.theirs { justify-self: start; background: var(--accent); color: var(--bg); }
+.chat-who { display: block; font-size: 0.78em; opacity: 0.8; }
+.chat-options { display: grid; gap: 0.4rem; margin-bottom: 0.8rem; }

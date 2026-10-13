@@ -475,6 +475,7 @@ export function createVillageScene(Phaser, ctx) {
       if (state === 'found') {
         return say('I found the answer to your problem', quest.thanks, () => {
           ctx.progress.setQuest(villager.id, 'done');
+          ctx.questSolved?.(villager.id);
           ctx.refreshHud();
           // The ground around this village is cleaned of poison.
           ctx.cleanse?.(villager.tribe_id);

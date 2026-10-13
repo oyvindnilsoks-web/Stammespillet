@@ -148,6 +148,7 @@ export function createWorldScene(Phaser, ctx) {
       this.onTaskKey = (e) => {
         if ((e.key === 'e' || e.key === 'E') && !e.repeat && !ctx.ui.isOpen()) this.startTask();
         if ((e.key === 'b' || e.key === 'B') && !e.repeat && !ctx.ui.isOpen()) this.challenge(this.nearestOther());
+        if ((e.key === 't' || e.key === 'T') && !e.repeat && !ctx.ui.isOpen()) this.talk(this.nearestOther());
       };
       document.addEventListener('keydown', this.onTaskKey);
       this.events.once('shutdown', () => document.removeEventListener('keydown', this.onTaskKey));
@@ -333,6 +334,13 @@ export function createWorldScene(Phaser, ctx) {
           const r = await ctx.presence.world(this.player.x / this.worldW, this.player.y / this.worldH, look);
           this.syncOthers(r.players || []);
           if (r.invite) ctx.showInvite?.(r.invite);
+          // Somebody said something: open the talk, once for each time.
+          const speaker = (r.talk || [])[0];
+          if (speaker && !ctx.ui.isOpen() && speaker.pid !== this.lastSpeaker) {
+            this.lastSpeaker = speaker.pid;
+            ctx.talkTo?.(speaker);
+          }
+          if (!speaker) this.lastSpeaker = null;
           if (r.unseen > 0 && !ctx.ui.isOpen()) ctx.refreshXp?.();
         } catch {
           // The others are only an extra; the game goes on without them.
@@ -393,6 +401,11 @@ export function createWorldScene(Phaser, ctx) {
         }
       }
       return best;
+    }
+
+    talk(other) {
+      if (!other || ctx.ui.isOpen()) return;
+      ctx.talkTo?.({ pid: other.pid, name: other.name });
     }
 
     challenge(other) {
@@ -519,7 +532,7 @@ export function createWorldScene(Phaser, ctx) {
       }
       const near = this.nearestOther();
       const open = ctx.ui.isOpen();
-      if (near && !open) ctx.ui.setPrompt(`Challenge ${near.name} to a word battle (B or click here)`, () => this.challenge(near));
+      if (near && !open) ctx.ui.setPrompt(`Talk to ${near.name} (T or click here). B is a word battle.`, () => this.talk(near));
       else ctx.ui.setPrompt(inPoison && !open ? 'You are standing in poison. Press E or click here to clean it with tasks.' : null, () => this.startTask());
       if (!open) this.checkQuestItems();
       this.animate(time, Boolean(vx || vy), this.terrain(p.x, p.y));

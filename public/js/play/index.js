@@ -1,6 +1,6 @@
 import { escapeHtml } from '../translate.js';
 import { createUi } from './ui.js';
-import { loadWorld, cleanseWorld, presenceBeat, presenceState, startCouncilSession, startTask, submitTask, battleList, battleDo, presenceWorld, artifactList } from '../api.js';
+import { loadWorld, cleanseWorld, presenceBeat, presenceState, startCouncilSession, startTask, submitTask, battleList, battleDo, presenceWorld, artifactList, chatGet, chatSay } from '../api.js';
 import { renderCouncil } from '../council.js';
 import { ensureFigures, figureSheetUrl } from './figures.js';
 import { mappedVillages, villagersOf, ownVillagers, playerLook, allQuests, noticesFor } from './data.js';
@@ -227,6 +227,25 @@ export function startPlay(container, content, { state, save }) {
         submit: (id, answers) => battleDo({ action: 'submit', id, answers }),
         cancel: (id) => battleDo({ action: 'cancel', id }),
         seen: () => battleDo({ action: 'seen' }),
+      };
+      // Talk to a student on the map with ready-made sentences. Opening it also answers
+      // a sentence somebody said to this student.
+      ctx.talkTo = (other) => {
+        if (ui.isOpen()) return;
+        ui.openChat(
+          other,
+          { get: () => chatGet(other.pid), say: (phrase) => chatSay(other.pid, phrase) },
+          () => {
+            ui.close();
+            ctx.challengePlayer(other.pid);
+          }
+        );
+      };
+      // Solving a problem gives XP, once for each problem (the server keeps count).
+      ctx.questSolved = (id) => {
+        battleDo({ action: 'quest-done', id })
+          .then(() => ctx.refreshXp())
+          .catch(() => {});
       };
       ctx.challengePlayer = (pid) => {
         if (ui.isOpen()) return;

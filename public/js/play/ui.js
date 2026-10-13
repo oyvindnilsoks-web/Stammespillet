@@ -240,6 +240,61 @@ export function createUi(wrap) {
       );
     },
 
+    // A talk with a student on the map: the sentences so far and the sentences to choose
+    // from. Nothing can be typed. other: { pid, name }.
+    openChat(other, api, battle, closed) {
+      let timer = null;
+      let last = '';
+      const stop = () => clearInterval(timer);
+      show(
+        `<div class="play-window-head"><div><h2>${escapeHtml(other.name)}</h2><p class="muted">Choose what to say</p></div><button class="small-btn" data-close>Close</button></div>
+         <div class="chat-log" id="chat-log" aria-live="polite"></div>
+         <div class="chat-options" id="chat-options"></div>
+         <div class="play-actions"><button class="small-btn" id="chat-battle">⚔ Word battle</button></div>`,
+        () => {
+          stop();
+          closed && closed();
+        }
+      );
+      const log = overlay.querySelector('#chat-log');
+      const options = overlay.querySelector('#chat-options');
+      overlay.querySelector('#chat-battle').addEventListener('click', battle);
+      const draw = (talk) => {
+        const key = JSON.stringify([talk.messages.map((m) => m.phrase + m.mine), talk.options.map((o) => o.id), talk.waiting]);
+        if (key === last) return;
+        last = key;
+        log.innerHTML = talk.messages.length
+          ? talk.messages.map((m) => `<p class="chat-line ${m.mine ? 'mine' : 'theirs'}"><span class="chat-who">${m.mine ? 'You' : escapeHtml(other.name)}</span> ${text(m.text)}</p>`).join('')
+          : `<p class="muted">Say hello to ${escapeHtml(other.name)}.</p>`;
+        log.scrollTop = log.scrollHeight;
+        options.innerHTML = talk.waiting
+          ? `<p class="muted">Waiting for ${escapeHtml(other.name)} to answer…</p>`
+          : talk.options.length
+            ? talk.options.map((o) => `<button class="choice-btn" data-phrase="${escapeHtml(o.id)}">${text(o.text)}</button>`).join('')
+            : '<p class="muted">The talk is over.</p>';
+      };
+      const refresh = async () => {
+        try {
+          draw(await api.get());
+        } catch {
+          options.innerHTML = '<p class="muted">The other student is not here any more.</p>';
+          stop();
+        }
+      };
+      options.addEventListener('click', async (e) => {
+        const b = e.target.closest('[data-phrase]');
+        if (!b) return;
+        options.querySelectorAll('button').forEach((x) => (x.disabled = true));
+        try {
+          draw(await api.say(b.dataset.phrase));
+        } catch {
+          refresh();
+        }
+      });
+      refresh();
+      timer = setInterval(refresh, 2000);
+    },
+
     // A challenge from another student on the map: take it or say no.
     openInvite(invite, accept, decline, closed) {
       show(

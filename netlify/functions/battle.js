@@ -58,6 +58,8 @@ exports.handler = withSessionRenewal(async (event) => {
         return reply(await battle.submit(supabase, user, body.id, body.answers));
       case 'cancel':
         return reply(await battle.cancel(supabase, user, body.id));
+      case 'quest-done':
+        return reply(await battle.questDone(supabase, user, body.id));
       case 'seen':
         return reply(await battle.markSeen(supabase, user));
       default:

@@ -197,4 +197,14 @@ async function resolvePid(supabase, pid, now = new Date()) {
   return hit ? hit.user_id : null;
 }
 
-module.exports = { loadResidents, labelsOf, beat, stateFor, startCouncil, mayChangeCouncil, beatWorld, worldState, resolvePid, pidOf, beatOnline, onlineList, ONLINE_FRESH_MS, FRESH_MS, SESSION_MS, WORLD_FRESH_MS };
+// What the others call a student: the name of their villager, never their own name.
+async function villagerNames(supabase, users) {
+  if (!users.length) return new Map();
+  const { data, error } = await supabase.from('characters').select('name, submitted_by').in('submitted_by', users).eq('status', 'approved');
+  if (error) throw new Error(error.message);
+  const names = new Map();
+  for (const c of data) if (!names.has(c.submitted_by)) names.set(c.submitted_by, c.name);
+  return names;
+}
+
+module.exports = { villagerNames, loadResidents, labelsOf, beat, stateFor, startCouncil, mayChangeCouncil, beatWorld, worldState, resolvePid, pidOf, beatOnline, onlineList, ONLINE_FRESH_MS, FRESH_MS, SESSION_MS, WORLD_FRESH_MS };

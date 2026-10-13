@@ -63,6 +63,21 @@ async function addXp(supabase, user, gain, result) {
   return next;
 }
 
+// XP for solving the problem of a villager, once for each student and problem. The
+// problem is the id of an approved villager that somebody else wrote.
+const XP_QUEST = 75;
+async function questDone(supabase, user, questId) {
+  if (typeof questId !== 'string' || !questId) return { ok: false, error: 'Unknown problem.' };
+  const { data: villager, error } = await supabase.from('characters').select('id, submitted_by').eq('id', questId).eq('status', 'approved').maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!villager || villager.submitted_by === user) return { ok: false, error: 'Unknown problem.' };
+  const { data: added, error: addErr } = await supabase.from('quest_xp').upsert({ user_id: user, quest_id: questId }, { onConflict: 'user_id,quest_id', ignoreDuplicates: true }).select();
+  if (addErr) throw new Error(addErr.message);
+  if (!added || !added.length) return { ok: true, xp: 0, stats: withRank(await xpOf(supabase, user)) };
+  const next = await addXp(supabase, user, XP_QUEST, null);
+  return { ok: true, xp: XP_QUEST, stats: withRank(next) };
+}
+
 async function myDuels(supabase, user) {
   const [a, b] = await Promise.all([supabase.from('duels').select('*').eq('challenger', user), supabase.from('duels').select('*').eq('opponent', user)]);
   const err = a.error || b.error;
@@ -280,4 +295,4 @@ async function markSeen(supabase, user) {
   return { ok: true };
 }
 
-module.exports = { decide, list, challenge, challengePlayer, pendingInvite, decline, unseenCount, accept, submit, cancel, markSeen, xpOf, INVITE_MS, QUESTIONS, XP_WIN, XP_PERFECT, XP_DRAW, XP_LOSS, MAX_OPEN, MAX_PER_DAY, TAKE_OVER_MS, OPEN_MS };
+module.exports = { questDone, XP_QUEST, decide, list, challenge, challengePlayer, pendingInvite, decline, unseenCount, accept, submit, cancel, markSeen, xpOf, INVITE_MS, QUESTIONS, XP_WIN, XP_PERFECT, XP_DRAW, XP_LOSS, MAX_OPEN, MAX_PER_DAY, TAKE_OVER_MS, OPEN_MS };

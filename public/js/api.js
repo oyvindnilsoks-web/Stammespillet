@@ -129,6 +129,25 @@ export async function presenceWorld(fx, fy, look) {
   return res.json();
 }
 
+// Talking with ready-made sentences: the talk with a student on the map (and what can
+// be said next), and saying one of the sentences.
+export async function chatGet(pid) {
+  const res = await fetch(`/api/presence?chat=${encodeURIComponent(pid)}`, { credentials: 'same-origin' });
+  if (!res.ok) throw new Error('Could not read the talk.');
+  return res.json();
+}
+
+export async function chatSay(pid, phrase) {
+  const res = await fetch('/api/presence', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'say', pid, phrase }),
+  });
+  if (!res.ok) throw new Error('Could not say that.');
+  return res.json();
+}
+
 export async function presenceState(tribeId) {
   const res = await fetch(`/api/presence?tribe_id=${encodeURIComponent(tribeId)}`, { credentials: 'same-origin' });
   if (!res.ok) throw new Error('Could not check who is here.');

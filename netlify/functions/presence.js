@@ -3,6 +3,7 @@ const { verifySessionToken, SESSION_COOKIE, withSessionRenewal } = require('./_l
 const { getSupabaseAdmin } = require('./_lib/supabaseAdmin');
 const presence = require('./_lib/presence');
 const battle = require('./_lib/battle');
+const chat = require('./_lib/chat');
 
 // Where the student is standing, and the gathering of the villagers of a village
 // (see _lib/presence.js). The game sends POST every few seconds while the student
@@ -38,13 +39,33 @@ exports.handler = withSessionRenewal(async (event) => {
 
     // The world map: who else is there, a challenge for this student, and whether
     // a battle result is waiting to be shown.
-    const worldReply = async () => ({
-      players: await presence.worldState(supabase, user),
-      invite: await battle.pendingInvite(supabase, user),
-      unseen: await battle.unseenCount(supabase, user),
-    });
+    const worldReply = async () => {
+      const senders = await chat.unreadFrom(supabase, user);
+      const names = await presence.villagerNames(supabase, senders);
+      return {
+        players: await presence.worldState(supabase, user),
+        invite: await battle.pendingInvite(supabase, user),
+        unseen: await battle.unseenCount(supabase, user),
+        talk: senders.map((u) => ({ pid: presence.pidOf(u), name: names.get(u) || 'A student' })),
+      };
+    };
+
+    // The student a code stands for: found among everyone who has the game open
+    // (the talk goes on a little after one of them walks off the map).
+    const studentOf = async (pid) => {
+      const { data, error } = await supabase.from('online').select('user_id');
+      if (error) throw new Error(error.message);
+      const hit = data.find((r) => presence.pidOf(r.user_id) === String(pid || ''));
+      return hit ? hit.user_id : null;
+    };
 
     if (event.httpMethod === 'GET' && (event.queryStringParameters || {}).world) return json(200, await worldReply());
+    if (event.httpMethod === 'GET' && (event.queryStringParameters || {}).chat) {
+      const other = await studentOf(event.queryStringParameters.chat);
+      if (!other || other === user) return json(404, { error: 'Not here' });
+      const names = await presence.villagerNames(supabase, [other]);
+      return json(200, { name: names.get(other) || 'A student', ...(await chat.talk(supabase, user, other)) });
+    }
     if (event.httpMethod === 'GET' && (event.queryStringParameters || {}).online) return json(200, { players: await presence.onlineList(supabase, user) });
 
     if (event.httpMethod === 'GET') {
@@ -65,6 +86,13 @@ exports.handler = withSessionRenewal(async (event) => {
         await presence.beatOnline(supabase, user);
         const list = await presence.onlineList(supabase, user);
         return json(200, { ok: true, count: list.length });
+      }
+      if (body.action === 'say') {
+        const other = await studentOf(body.pid);
+        if (!other) return json(404, { error: 'Not here' });
+        const said = await chat.say(supabase, user, other, body.phrase);
+        if (!said.ok) return json(400, { error: said.reason });
+        return json(200, await chat.talk(supabase, user, other));
       }
       if (body.world) {
         const moved = await presence.beatWorld(supabase, user, body);
