@@ -232,7 +232,7 @@ export function createVillageScene(Phaser, ctx) {
             ctx.progress.talk(villager.id);
             ctx.refreshHud();
             const drawing = portraitOf(ctx.content, villager.id);
-            ctx.ui.openVillager(villager, tribe, frame, drawing ? mediaUrl(drawing.storage_path) : null, () => this.unlock(), [...generatedTopics(ctx.content, villager, tribe, this.biome), ...this.questTopics(villager)]);
+            ctx.ui.openVillager(villager, tribe, frame, drawing ? mediaUrl(drawing.storage_path) : null, () => this.unlock(), [...generatedTopics(ctx.content, villager, tribe, this.biome), ...this.questTopics(villager), ...this.messageTopics(villager)]);
           },
         });
       });
@@ -481,14 +481,32 @@ export function createVillageScene(Phaser, ctx) {
         });
       }
       if (state === 'done') return say('About your problem', quest.thanks);
-      const said = quest.hint ? `${quest.problem}\n\nHint: ${quest.hint}` : quest.problem;
-      const answer = quest.placeholder ? `(Placeholder) ${said}` : said;
+      // The hint, and for a thing to find: where on the map it lies.
+      const spot = quest.kind === 'find' ? ((ctx.questSpots && ctx.questSpots[villager.id]) || {}).hint : '';
+      const hint = [quest.hint, spot].filter(Boolean).join(' ');
+      const answer = hint ? `${quest.problem}\n\nHint: ${hint}` : quest.problem;
       return say(state === 'open' ? 'About your problem' : 'Do you need help?', answer, () => {
         if (!state) {
           ctx.progress.setQuest(villager.id, 'open');
           ctx.refreshHud();
         }
       });
+    }
+
+    // Someone in another village has a problem that can only be solved by talking to
+    // this villager: the player who has heard about it gets the message here.
+    messageTopics(villager) {
+      return allQuests(ctx.content)
+        .filter(({ villager: from, quest }) => quest.kind === 'talk' && quest.target && quest.target.villagerId === villager.id && ctx.progress.quest(from.id) === 'open')
+        .map(({ villager: from, quest }) => ({
+          id: 'message',
+          question: `${from.name} from ${(ctx.content.tribes.get(from.tribe_id) || {}).name || 'another village'} sent me`,
+          answer: `${quest.found}\n\nNow go back to ${from.name} with the answer.`,
+          onShow: () => {
+            ctx.progress.setQuest(from.id, 'found');
+            ctx.refreshHud();
+          },
+        }));
     }
 
     // Problems from other villages that can be solved here: show what is found.

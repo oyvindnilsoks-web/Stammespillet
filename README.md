@@ -1,6 +1,6 @@
-# Stammespillet ("The Unmaking")
+# Stammespillet ("The Game of Tribes")
 
-Spillets tittel i grensesnittet er **"The Unmaking"** – hele elevopplevelsen
+Spillets tittel i grensesnittet er **"The Game of Tribes"** – hele elevopplevelsen
 (knapper, tekst, meldinger, innhold) er på engelsk, siden dette er
 engelskfagets prosjekt. "Stammespillet" brukes fortsatt som prosjektnavn i
 dokumentasjon og repo.

@@ -312,9 +312,16 @@ export function startPlay(container, content, { state, save }) {
           .map(({ villager, quest, tribe }) => ({
             who: villager.name,
             where: tribe ? tribe.name : '',
-            problem: quest.placeholder ? `(Placeholder) ${quest.problem}` : quest.problem,
-            hint: quest.hint,
-            status: progress.quest(villager.id) === 'found' ? `You found the answer. Go back to ${villager.name} and tell them.` : 'Not solved yet. Search other villages.',
+            problem: quest.problem,
+            hint: [quest.hint, quest.kind === 'find' ? ((ctx.questSpots && ctx.questSpots[villager.id]) || {}).hint : ''].filter(Boolean).join(' '),
+            status:
+              progress.quest(villager.id) === 'found'
+                ? `You have what you need. Go back to ${villager.name}.`
+                : quest.kind === 'talk'
+                  ? `Go and talk to ${quest.target.villagerName} in ${quest.target.villageName}.`
+                  : quest.kind === 'find'
+                    ? 'Look for it out on the map.'
+                    : 'Not solved yet. Search other villages.',
           }));
       wrap.querySelector('#play-hud').addEventListener('click', (e) => {
         if (e.target.closest('#play-quests') && !ui.isOpen()) ui.openQuestLog(ctx.questLog());

@@ -2,6 +2,7 @@
 // villagers the students wrote. Nothing here is drawn; see world.js and village.js.
 
 import { FIGURE_COUNT } from './figures.js';
+import { generatedQuest } from './problems.js';
 
 // The figure the player walks around as: frame 112 of the "heroes" sheet. The
 // villagers' 60 figures are in figures.js, and none of them looks exactly like it.
@@ -156,24 +157,8 @@ export function questOf(content, villager) {
     const targets = [...content.tribes.values()].filter((t) => t.id !== villager.tribe_id && listsVillage(targetText, t));
     if (targets.length) return { problem, hint: asText(c.quest_hint), found, thanks: asText(c.quest_thanks) || 'Thank you!', targets: targets.map((t) => t.id) };
   }
-  return placeholderQuest(content, villager);
-}
-
-// A stand-in problem for a villager whose student has not written one: the answer
-// is in the nearest other village. It shows how problems work, and is replaced by
-// the student's own problem when there is one.
-function placeholderQuest(content, villager) {
-  const tribe = content.tribes.get(villager.tribe_id);
-  const near = tribe && neighboursOf(content, tribe, 1)[0];
-  if (!near) return null;
-  return {
-    placeholder: true,
-    problem: 'I have lost something that matters a lot to me, and I cannot go looking for it myself. Please search the other villages and ask around.',
-    hint: 'Start with the villages closest to ours.',
-    found: 'You find a note: "This problem is a placeholder. Soon the students will write real problems, and the real answers will be here."',
-    thanks: 'Thank you for looking! (This is a placeholder: the students will write real problems soon.)',
-    targets: [near.id],
-  };
+  // No problem written by the student: the villager gets a real one made from the world.
+  return generatedQuest(content, villager);
 }
 
 // News for the player's villages: another village has made them an ally or an enemy.

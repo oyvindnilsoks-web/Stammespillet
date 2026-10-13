@@ -1,5 +1,5 @@
 import { buildMask, connectVillages, terrainAt, MASK_COLS, MASK_ROWS } from './mask.js';
-import { shieldOf, isEnemy, villagersOf, PLAYER_FRAME } from './data.js';
+import { shieldOf, isEnemy, villagersOf, PLAYER_FRAME, allQuests, mulberry32, hashString } from './data.js';
 import { mediaUrl } from '../content.js';
 
 // The world map: the painted map is the ground, a small figure walks on it,
@@ -61,6 +61,7 @@ export function createWorldScene(Phaser, ctx) {
       });
 
       this.initPoison(W, H);
+      this.initQuestItems();
       this.startPeople();
 
       // The shield of a village, when the teacher has added one, above its sign.
@@ -226,6 +227,97 @@ export function createWorldScene(Phaser, ctx) {
       this.events.once('shutdown', () => {
         ctx.onWorld = null;
       });
+    }
+
+    // Where a thing a villager has lost lies on the map. It is decided from the
+    // villager, so it is the same for every player: on ground that can be walked on, away
+    // from the villages. The hint says which village it is near and which way to go.
+    spotFor(villager, taken) {
+      const rand = mulberry32(hashString(villager.id + ':spot'));
+      let spot = null;
+      for (let n = 0; n < 600 && !spot; n++) {
+        const x = (0.08 + 0.84 * rand()) * this.worldW;
+        const y = (0.1 + 0.8 * rand()) * this.worldH;
+        if (this.terrain(x, y) !== 'land') continue;
+        if (this.signs.some((s) => Phaser.Math.Distance.Between(x, y, s.x, s.y) < 170)) continue;
+        if (taken.some((t) => Phaser.Math.Distance.Between(x, y, t.x, t.y) < 120)) continue;
+        spot = { x, y };
+      }
+      if (!spot) return null;
+      let near = this.signs[0];
+      for (const s of this.signs) {
+        if (Phaser.Math.Distance.Between(spot.x, spot.y, s.x, s.y) < Phaser.Math.Distance.Between(spot.x, spot.y, near.x, near.y)) near = s;
+      }
+      const dx = spot.x - near.x;
+      const dy = spot.y - near.y;
+      const dirs = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'];
+      const dir = dirs[(Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8];
+      const name = near.village.tribe.name;
+      spot.hint = Math.hypot(dx, dy) < 360 ? `Look close to ${name}, a little to the ${dir}.` : `Look a long way ${dir} of ${name}.`;
+      return spot;
+    }
+
+    initQuestItems() {
+      this.questItems = new Map();
+      ctx.questSpots = ctx.questSpots || {};
+      const taken = [];
+      for (const { villager, quest } of allQuests(ctx.content)) {
+        if (quest.kind !== 'find') continue;
+        if (!ctx.questSpots[villager.id]) ctx.questSpots[villager.id] = this.spotFor(villager, taken);
+        if (ctx.questSpots[villager.id]) taken.push(ctx.questSpots[villager.id]);
+      }
+      this.syncQuestItems();
+    }
+
+    // The things to find: one for every problem the player has heard about and not
+    // yet solved. A thing disappears when it is picked up.
+    syncQuestItems() {
+      const open = new Map();
+      for (const { villager, quest } of allQuests(ctx.content)) {
+        const spot = ctx.questSpots && ctx.questSpots[villager.id];
+        if (quest.kind === 'find' && spot && ctx.progress.quest(villager.id) === 'open') open.set(villager.id, { villager, quest, spot });
+      }
+      for (const [id, item] of this.questItems) {
+        if (open.has(id)) continue;
+        item.parts.forEach((part) => part.destroy());
+        this.questItems.delete(id);
+      }
+      for (const [id, { villager, quest, spot }] of open) {
+        if (this.questItems.has(id)) continue;
+        const glow = this.add.ellipse(spot.x, spot.y + 4, 52, 22, 0xffe28a, 0.5).setDepth(2);
+        const star = this.add
+          .text(spot.x, spot.y - 6, '✦', { fontFamily: 'Georgia, serif', fontSize: '30px', color: '#ffe28a', stroke: '#1b1712', strokeThickness: 5 })
+          .setOrigin(0.5, 1)
+          .setDepth(4);
+        const label = this.add
+          .text(spot.x, spot.y - 42, quest.item.name, { fontFamily: 'Georgia, serif', fontSize: '14px', color: '#f2e9da', stroke: '#1b1712', strokeThickness: 4 })
+          .setOrigin(0.5, 1)
+          .setDepth(8)
+          .setAlpha(0);
+        this.tweens.add({ targets: [glow, star], alpha: { from: 0.35, to: 1 }, duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        this.questItems.set(id, { parts: [glow, star, label], label, spot, villager, quest });
+      }
+    }
+
+    // Walking up to a thing picks it up.
+    checkQuestItems() {
+      for (const [id, item] of this.questItems) {
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, item.spot.x, item.spot.y);
+        item.label.setAlpha(d < 300 ? 1 : 0);
+        if (d < 46) {
+          this.pickUp(id);
+          return;
+        }
+      }
+    }
+
+    pickUp(id) {
+      const item = this.questItems.get(id);
+      if (!item) return;
+      ctx.progress.setQuest(id, 'found');
+      ctx.refreshHud();
+      this.syncQuestItems();
+      ctx.ui.openNote(`You found ${item.quest.item.name}`, `For ${item.villager.name}`, `${item.quest.found}\n\nNow take it back to ${item.villager.name}.`);
     }
 
     // The other students on the map: told where they are every few seconds, and
@@ -429,6 +521,7 @@ export function createWorldScene(Phaser, ctx) {
       const open = ctx.ui.isOpen();
       if (near && !open) ctx.ui.setPrompt(`Challenge ${near.name} to a word battle (B or click here)`, () => this.challenge(near));
       else ctx.ui.setPrompt(inPoison && !open ? 'You are standing in poison. Press E or click here to clean it with tasks.' : null, () => this.startTask());
+      if (!open) this.checkQuestItems();
       this.animate(time, Boolean(vx || vy), this.terrain(p.x, p.y));
 
       if (time > this.cooldownUntil && !ctx.ui.isOpen()) {

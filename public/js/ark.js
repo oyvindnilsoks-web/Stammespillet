@@ -71,7 +71,7 @@ function sheet(key) {
   if (key === 'villager') html += figureSection(n);
   return `<article class="sheet">
     <h1>${both(s.title, s.en)}</h1>
-    <p class="sub">Stammespillet · The Unmaking. Skriv med blyant, så skriver dere det inn på nettsiden etterpå. Du kan skrive på norsk, svarene blir oversatt.</p>
+    <p class="sub">Stammespillet · The Game of Tribes. Skriv med blyant, så skriver dere det inn på nettsiden etterpå. Du kan skrive på norsk, svarene blir oversatt.</p>
     <div class="who"><div class="field"><div class="label">Navn på de som skriver</div><div class="line"></div></div><div class="field"><div class="label">Dato</div><div class="line"></div></div></div>
     ${html}
   </article>`;

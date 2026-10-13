@@ -127,7 +127,7 @@ function showLoginScreen({ feideEnabled = false, nameLoginEnabled = true } = {})
   app.innerHTML = `
     <div class="login-box">
       <img class="cover-art" src="/assets/images/lore/cover-art.jpg" alt="" onerror="this.style.display='none'">
-      <h1>The Unmaking</h1>
+      <h1>The Game of Tribes</h1>
       ${
         feideEnabled
           ? `<p>Log in with your school account to save your work.</p>
