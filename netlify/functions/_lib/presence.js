@@ -157,6 +157,36 @@ function pidOf(user) {
 
 const fraction = (v) => (Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 1 ? Number(v) : null);
 
+// The student stands inside a village here (fx and fy are fractions of the village).
+async function beatVillage(supabase, user, tribeId, { fx, fy, look }, now = new Date()) {
+  const x = fraction(fx);
+  const y = fraction(fy);
+  if (x === null || y === null) return { ok: false };
+  const { error } = await supabase.from('presence').upsert({ user_id: user, tribe_id: tribeId, fx: x, fy: y, look: validFigure(look), seen_at: now.toISOString() });
+  if (error) throw new Error(error.message);
+  return { ok: true };
+}
+
+// The other students inside the same village right now: code, the name of their villager,
+// figure and place.
+async function villageOthers(supabase, user, tribeId, now = new Date()) {
+  const { data: rows, error } = await supabase.from('presence').select('user_id, tribe_id, fx, fy, look, seen_at').eq('tribe_id', tribeId);
+  if (error) throw new Error(error.message);
+  const others = rows.filter((r) => r.user_id !== user && r.fx !== null && r.fy !== null && now - new Date(r.seen_at) < WORLD_FRESH_MS);
+  if (!others.length) return [];
+  const { data: people, error: namesErr } = await supabase.from('characters').select('name, sprite, submitted_by').in('submitted_by', others.map((r) => r.user_id)).eq('status', 'approved');
+  if (namesErr) throw new Error(namesErr.message);
+  const first = new Map();
+  for (const c of people) if (!first.has(c.submitted_by)) first.set(c.submitted_by, c);
+  return others.map((r) => ({
+    pid: pidOf(r.user_id),
+    name: (first.get(r.user_id) || {}).name || 'A student',
+    look: r.look === null || r.look === undefined ? validFigure((first.get(r.user_id) || {}).sprite) : r.look,
+    fx: r.fx,
+    fy: r.fy,
+  }));
+}
+
 // The student stands on the world map here. look is the figure (0-59) or null.
 async function beatWorld(supabase, user, { fx, fy, look }, now = new Date()) {
   const x = fraction(fx);
@@ -193,7 +223,7 @@ async function worldState(supabase, user, now = new Date()) {
 async function resolvePid(supabase, pid, now = new Date()) {
   const { data: rows, error } = await supabase.from('presence').select('user_id, tribe_id, seen_at');
   if (error) throw new Error(error.message);
-  const hit = rows.find((r) => !r.tribe_id && now - new Date(r.seen_at) < WORLD_FRESH_MS && pidOf(r.user_id) === String(pid || ''));
+  const hit = rows.find((r) => now - new Date(r.seen_at) < WORLD_FRESH_MS && pidOf(r.user_id) === String(pid || ''));
   return hit ? hit.user_id : null;
 }
 
@@ -207,4 +237,4 @@ async function villagerNames(supabase, users) {
   return names;
 }
 
-module.exports = { villagerNames, loadResidents, labelsOf, beat, stateFor, startCouncil, mayChangeCouncil, beatWorld, worldState, resolvePid, pidOf, beatOnline, onlineList, ONLINE_FRESH_MS, FRESH_MS, SESSION_MS, WORLD_FRESH_MS };
+module.exports = { beatVillage, villageOthers, villagerNames, loadResidents, labelsOf, beat, stateFor, startCouncil, mayChangeCouncil, beatWorld, worldState, resolvePid, pidOf, beatOnline, onlineList, ONLINE_FRESH_MS, FRESH_MS, SESSION_MS, WORLD_FRESH_MS };

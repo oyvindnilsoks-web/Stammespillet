@@ -173,6 +173,18 @@ export async function landClaim(tribeId, direction) {
   return data;
 }
 
+// Inside a village: the same as presenceWorld, for the students in that village.
+export async function presenceVillage(tribeId, fx, fy, look) {
+  const res = await fetch('/api/presence', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ village: tribeId, fx, fy, look }),
+  });
+  if (!res.ok) throw new Error('Could not see the others.');
+  return res.json();
+}
+
 export async function presenceState(tribeId) {
   const res = await fetch(`/api/presence?tribe_id=${encodeURIComponent(tribeId)}`, { credentials: 'same-origin' });
   if (!res.ok) throw new Error('Could not check who is here.');

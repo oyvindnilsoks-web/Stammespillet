@@ -1,6 +1,6 @@
 import { escapeHtml } from '../translate.js';
 import { createUi } from './ui.js';
-import { loadWorld, cleanseWorld, presenceBeat, presenceState, startCouncilSession, startTask, submitTask, battleList, battleDo, presenceWorld, artifactList, chatGet, chatSay } from '../api.js';
+import { loadWorld, cleanseWorld, presenceBeat, presenceState, startCouncilSession, startTask, submitTask, battleList, battleDo, presenceWorld, presenceVillage, artifactList, chatGet, chatSay } from '../api.js';
 import { renderCouncil } from '../council.js';
 import { ensureFigures, figureSheetUrl } from './figures.js';
 import { mappedVillages, villagersOf, ownVillagers, playerLook, allQuests, noticesFor } from './data.js';
@@ -162,6 +162,7 @@ export function startPlay(container, content, { state, save }) {
         state: (tribeId) => presenceState(tribeId),
         start: (tribeId) => startCouncilSession(tribeId),
         world: (fx, fy, look) => presenceWorld(fx, fy, look),
+        village: (tribeId, fx, fy, look) => presenceVillage(tribeId, fx, fy, look),
       };
       ctx.openCouncil = (tribe, closed) =>
         ui.openCouncil(tribe.name, (host) => renderCouncil(host, { lang: 'en', translation: false, tribeId: tribe.id, live: true }), closed);
@@ -361,7 +362,16 @@ export function startPlay(container, content, { state, save }) {
           this.load.spritesheet('figures', figureSheetUrl(), { frameWidth: 16, frameHeight: 16 });
         }
         create() {
-          this.scene.start('World');
+          // The game starts inside the student's own village, where the others of the
+          // village can be met. Everybody else starts on the map.
+          const own = playerLook(content, progress.playingAs()).villager;
+          const homeId = (own && own.tribe_id) || (content.mine || [])[0];
+          if (homeId && villages.some((v) => v.tribe.id === homeId)) {
+            ctx.mapImage = this.textures.get('map').getSourceImage();
+            this.scene.start('Village', { tribeId: homeId });
+          } else {
+            this.scene.start('World');
+          }
         }
       };
 

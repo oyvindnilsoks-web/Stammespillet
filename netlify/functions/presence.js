@@ -39,11 +39,11 @@ exports.handler = withSessionRenewal(async (event) => {
 
     // The world map: who else is there, a challenge for this student, and whether
     // a battle result is waiting to be shown.
-    const worldReply = async () => {
+    const worldReply = async (players) => {
       const senders = await chat.unreadFrom(supabase, user);
       const names = await presence.villagerNames(supabase, senders);
       return {
-        players: await presence.worldState(supabase, user),
+        players: players || (await presence.worldState(supabase, user)),
         invite: await battle.pendingInvite(supabase, user),
         unseen: await battle.unseenCount(supabase, user),
         talk: senders.map((u) => ({ pid: presence.pidOf(u), name: names.get(u) || 'A student' })),
@@ -93,6 +93,13 @@ exports.handler = withSessionRenewal(async (event) => {
         const said = await chat.say(supabase, user, other, body.phrase);
         if (!said.ok) return json(400, { error: said.reason });
         return json(200, await chat.talk(supabase, user, other));
+      }
+      // Inside a village: where the student stands, and who else is in the village.
+      if (body.village) {
+        if (!(await approvedVillage(supabase, body.village))) return json(404, { error: 'Unknown village' });
+        const moved = await presence.beatVillage(supabase, user, body.village, body);
+        if (!moved.ok) return json(400, { error: 'Invalid place' });
+        return json(200, await worldReply(await presence.villageOthers(supabase, user, body.village)));
       }
       if (body.world) {
         const moved = await presence.beatWorld(supabase, user, body);
