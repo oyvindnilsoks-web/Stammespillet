@@ -2,6 +2,7 @@ const { parseCookies } = require('./_lib/cookies');
 const { verifySessionToken, SESSION_COOKIE, withSessionRenewal } = require('./_lib/session');
 const { getSupabaseAdmin } = require('./_lib/supabaseAdmin');
 const world = require('./_lib/world');
+const { residentVillageIds } = require('./_lib/residents');
 
 // The shared world for the game: where the poison is (to draw on the map), and
 // cleaning around a village when a student solves a problem. It needs a login.
@@ -28,7 +29,8 @@ exports.handler = withSessionRenewal(async (event) => {
     const supabase = getSupabaseAdmin();
     if (event.httpMethod === 'GET') {
       const state = await world.loadState(supabase);
-      return json(200, { poison: state.poison, ...world.summary(state) });
+      const land = await world.loadTerritory(supabase, state);
+      return json(200, { poison: state.poison, territory: world.territoryView(land), ...world.summary(state) });
     }
     if (event.httpMethod === 'POST') {
       let body;
@@ -43,6 +45,16 @@ exports.handler = withSessionRenewal(async (event) => {
       }
       if (body.action === 'task-submit') {
         return json(200, await world.submitTask(supabase, user, body));
+      }
+      if (body.action === 'claim-preview' || body.action === 'claim') {
+        const tribeId = String(body.tribe_id || '');
+        const { data: approved, error } = await supabase.from('tribes').select('id').eq('status', 'approved');
+        if (error) throw new Error(error.message);
+        const mine = await residentVillageIds(supabase, user, new Set(approved.map((t) => t.id)));
+        if (!mine.includes(tribeId)) return json(404, { error: 'You can only take land for a village you live in.' });
+        if (body.action === 'claim-preview') return json(200, await world.claimPreview(supabase, user, tribeId));
+        const result = await world.claim(supabase, user, tribeId, String(body.direction || ''));
+        return json(result.ok ? 200 : 409, result);
       }
       if (body.action !== 'cleanse') return json(400, { error: 'Unknown action' });
       const result = await world.cleanse(supabase, String(body.tribe_id || ''));

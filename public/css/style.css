@@ -723,3 +723,6 @@ main.wide { max-width: 1000px; }
 .chat-line.theirs { justify-self: start; background: var(--accent); color: var(--bg); }
 .chat-who { display: block; font-size: 0.78em; opacity: 0.8; }
 .chat-options { display: grid; gap: 0.4rem; margin-bottom: 0.8rem; }
+
+/* Land the council can take */
+.land-dirs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.4rem; }

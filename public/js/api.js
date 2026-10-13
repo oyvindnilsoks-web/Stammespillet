@@ -148,6 +148,31 @@ export async function chatSay(pid, phrase) {
   return res.json();
 }
 
+// Land: what the council leader can take (how much land each direction gives), and
+// taking it.
+export async function landPreview(tribeId) {
+  const res = await fetch('/api/world', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'claim-preview', tribe_id: tribeId }),
+  });
+  if (!res.ok) throw new Error('Could not see the land.');
+  return res.json();
+}
+
+export async function landClaim(tribeId, direction) {
+  const res = await fetch('/api/world', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'claim', tribe_id: tribeId, direction }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Could not take the land.');
+  return data;
+}
+
 export async function presenceState(tribeId) {
   const res = await fetch(`/api/presence?tribe_id=${encodeURIComponent(tribeId)}`, { credentials: 'same-origin' });
   if (!res.ok) throw new Error('Could not check who is here.');

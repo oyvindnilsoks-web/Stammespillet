@@ -217,12 +217,60 @@ export function createWorldScene(Phaser, ctx) {
           this.shieldRings.strokeCircle(sign.x, sign.y, radius);
         }
       };
+      // The land of the villages: a soft colour for each village, and a line along every
+      // border. The home regions and the land the councils have taken.
+      const landTexture = this.textures.exists('land') ? this.textures.get('land') : this.textures.createCanvas('land', MASK_COLS, MASK_ROWS);
+      landTexture.setFilter(Phaser.Textures.FilterMode.LINEAR);
+      this.landImage = this.add.image(0, 0, 'land').setOrigin(0, 0).setDisplaySize(W, H).setDepth(1.4).setVisible(false);
+      const hueOf = (id) => {
+        let h = 0;
+        for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) % 360;
+        return h;
+      };
+      const rgb = (h) => {
+        const f = (n) => {
+          const k = (n + h / 30) % 12;
+          return Math.round(255 * (0.55 - 0.3 * Math.max(-1, Math.min(k - 3, 9 - k, 1))));
+        };
+        return [f(0), f(8), f(4)];
+      };
+      const drawLand = () => {
+        const land = ctx.world && ctx.world.territory;
+        if (!land) return;
+        const bytes = Uint8Array.from(atob(land.grid), (c) => c.charCodeAt(0));
+        if (bytes.length !== MASK_COLS * MASK_ROWS) return;
+        const colours = land.ids.map((id) => rgb(hueOf(id)));
+        const g = this.textures.get('land').getSourceImage().getContext('2d');
+        const image = g.createImageData(MASK_COLS, MASK_ROWS);
+        for (let y = 0; y < MASK_ROWS; y++) {
+          for (let x = 0; x < MASK_COLS; x++) {
+            const i = y * MASK_COLS + x;
+            const owner = bytes[i];
+            if (!owner) continue;
+            const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => {
+              const nx = x + dx;
+              const ny = y + dy;
+              return nx < 0 || ny < 0 || nx >= MASK_COLS || ny >= MASK_ROWS || bytes[ny * MASK_COLS + nx] !== owner;
+            });
+            const [r, gr, b] = colours[owner - 1] || [200, 200, 200];
+            image.data[i * 4] = r;
+            image.data[i * 4 + 1] = gr;
+            image.data[i * 4 + 2] = b;
+            image.data[i * 4 + 3] = edge ? 190 : 55;
+          }
+        }
+        g.putImageData(image, 0, 0);
+        this.textures.get('land').refresh();
+        this.landImage.setVisible(true);
+      };
       ctx.onWorld = () => {
         draw();
         drawRings();
+        drawLand();
       };
       draw();
       drawRings();
+      drawLand();
       ctx.reloadWorld?.();
       this.poisonTimer = this.time.addEvent({ delay: 60000, loop: true, callback: () => ctx.reloadWorld?.() });
       this.events.once('shutdown', () => {

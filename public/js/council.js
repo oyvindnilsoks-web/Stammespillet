@@ -1,4 +1,4 @@
-import { loadCouncils, saveCouncil } from './api.js';
+import { loadCouncils, saveCouncil, landPreview, landClaim } from './api.js';
 import { escapeHtml } from './translate.js';
 
 // The "Council" tab on the Contribute page: the students who live in a village
@@ -10,6 +10,12 @@ import { escapeHtml } from './translate.js';
 const TEXT = {
   en: {
     loading: 'Loading…',
+    landTitle: 'Land',
+    landLede: (cells, radius) => `Your village has ${cells} squares of land. Once a day the council can take free land that borders yours, ${radius} squares wide. The poison in it comes with it. Choose a direction.`,
+    landSquares: (n) => `+${n} squares`,
+    landTaken: (n) => `✓ Your village took ${n} squares of land.`,
+    landNext: (when) => `You can take land again ${when}.`,
+    landFailed: 'Could not take the land.',
     intro: 'You decide this together with everyone who lives in your village. Choose one council leader: only the leader can save, so you do not overwrite each other. Allies are friends. Enemies cannot visit your village, and you cannot visit them.',
     none: 'You get a seat in the council when your village, or a villager you wrote, has been approved by the teacher.',
     meetInVillage: 'The council meets in the village. When everyone who belongs to the village (the group that made it, and those who wrote a villager) is standing in the village in the game, a button appears for all of you to start the council. Here you can read what has been decided.',
@@ -37,6 +43,12 @@ const TEXT = {
   },
   no: {
     loading: 'Laster …',
+    landTitle: 'Land',
+    landLede: (cells, radius) => `Landsbyen har ${cells} ruter land. Én gang om dagen kan rådet ta fritt land som grenser til deres, ${radius} ruter bredt. Giften i landet følger med. Velg en retning.`,
+    landSquares: (n) => `+${n} ruter`,
+    landTaken: (n) => `✓ Landsbyen tok ${n} ruter land.`,
+    landNext: (when) => `Dere kan ta land igjen ${when}.`,
+    landFailed: 'Kunne ikke ta landet.',
     intro: 'Dette bestemmer dere sammen med alle som bor i landsbyen. Velg én rådsleder: bare lederen kan lagre, så dere ikke skriver over hverandre. Allierte er venner. Fiender kan ikke besøke landsbyen deres, og dere kan ikke besøke dem.',
     none: 'Du får plass i rådet når landsbyen din, eller en innbygger du har skrevet, er godkjent av læreren.',
     meetInVillage: 'Rådet møtes i landsbyen. Når alle som hører til landsbyen (gruppa som laget den, og de som har skrevet en innbygger) står i landsbyen i spillet, dukker det opp en knapp til alle for å starte rådet. Her kan du lese hva som er bestemt.',
@@ -117,6 +129,7 @@ function card(council, villages, lang, t, translation, live) {
     <div class="charter-field"><span class="field-label">${t.allies}</span><div class="council-checks">${noOthers ? `<p class="muted">${t.noOthers}</p>` : checks('allies', villages, council.tribe_id, council.allies)}</div></div>
     <div class="charter-field"><span class="field-label">${t.enemies}</span><div class="council-checks">${noOthers ? '' : checks('enemies', villages, council.tribe_id, council.enemies)}</div></div>
     <div class="council-actions"><button type="button" class="choice-btn" data-save>${t.save}</button> <span class="muted" data-status role="status"></span></div>
+    <div class="charter-field council-land" data-land="${h(council.tribe_id)}"></div>
   </section>`;
 }
 
@@ -158,6 +171,41 @@ export async function renderCouncil(host, options) {
     box.closest('[data-council]').querySelectorAll(`input[name="${other}"]`).forEach((o) => {
       if (o.value === box.value) o.checked = false;
     });
+  });
+
+  // The land: how much each direction would give, for the leader while the council meets.
+  host.querySelectorAll('[data-land]').forEach(async (box) => {
+    const id = box.dataset.land;
+    const draw = async (message = '') => {
+      let p;
+      try {
+        p = await landPreview(id);
+      } catch {
+        return;
+      }
+      const head = `<span class="field-label">${t.landTitle}</span>`;
+      if (!p.can) {
+        const when = p.next_at ? t.landNext(new Date(p.next_at).toLocaleString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' })) : h(p.reason || '');
+        box.innerHTML = `${head}<p class="muted">${message || when}</p>`;
+        return;
+      }
+      box.innerHTML = `${head}<p class="muted">${message || t.landLede(p.cells, p.radius)}</p><div class="land-dirs">${p.options
+        .map((o) => `<button type="button" class="small-btn" data-dir="${h(o.dir)}" ${o.cells < 6 ? 'disabled' : ''}>${h(o.label)} <span class="muted">${o.cells < 6 ? '–' : t.landSquares(o.cells)}</span></button>`)
+        .join('')}</div>`;
+    };
+    box.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-dir]');
+      if (!b) return;
+      box.querySelectorAll('button').forEach((x) => (x.disabled = true));
+      try {
+        const r = await landClaim(id, b.dataset.dir);
+        window.dispatchEvent(new Event('land-changed'));
+        await draw(t.landTaken(r.taken));
+      } catch (err) {
+        await draw(err.message || t.landFailed);
+      }
+    });
+    draw();
   });
 
   host.querySelectorAll('[data-save]').forEach((button) =>

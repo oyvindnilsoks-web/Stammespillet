@@ -1,11 +1,13 @@
 const poison = require('./poison');
 const tasks = require('./tasks');
 const { residentVillageIds } = require('./residents');
+const territory = require('./territory');
+const presence = require('./presence');
 
 // The shared world in the database: loading it, moving the poison one step, and
 // cleaning around a village. The rules of the poison itself are in poison.js.
 
-const DEFAULTS = { id: 'main', poison: '', step: 0, paused: true, speed_minutes: 10, win_percent: 60, school_hours_only: true, result: '', last_step_at: null, cleansed: {}, shields: {} };
+const DEFAULTS = { id: 'main', poison: '', step: 0, paused: true, speed_minutes: 10, win_percent: 60, school_hours_only: true, result: '', last_step_at: null, cleansed: {}, shields: {}, owners: '', owner_ids: [], anchors: {} };
 const CLEANSE_COOLDOWN_MS = 10 * 60 * 1000; // one village can be cleaned every ten minutes
 const TASK_COOLDOWN_MS = 30 * 1000; // a student gets a reward for a quiz at most every half minute
 const MAX_SHIELD = 12;
@@ -146,6 +148,74 @@ async function submitTask(supabase, user, { token, answers, fx, fy }, now = new 
   return { ...result, percent: poison.percentPoisoned(grid), shields };
 }
 
+// ---- land ----
+
+// The approved villages with the spot they stand on.
+async function loadVillages(supabase) {
+  const { data, error } = await supabase.from('tribes').select('id, name, charter_type, territory').eq('status', 'approved');
+  if (error) throw new Error(error.message);
+  return data
+    .filter((t) => t.territory && Number.isFinite(t.territory.map_x) && Number.isFinite(t.territory.map_y))
+    .map((t) => ({ id: t.id, name: t.name, shadow: t.charter_type === 'shadow', mapX: t.territory.map_x, mapY: t.territory.map_y }));
+}
+
+// The land as it stands now. A village that has moved has lost the land it took (see
+// territory.settle); that is saved the first time anybody asks.
+async function loadTerritory(supabase, state) {
+  const villages = await loadVillages(supabase);
+  const ids = territory.orderIds(state.owner_ids || [], villages.map((v) => v.id));
+  const settled = territory.settle(territory.decodeOwners(state.owners), ids, state.anchors || {}, villages);
+  const idsChanged = JSON.stringify(ids) !== JSON.stringify(state.owner_ids || []);
+  if (settled.changed || idsChanged) await saveState(supabase, { owners: territory.encodeOwners(settled.owners), owner_ids: ids, anchors: settled.anchors });
+  return { villages, ids, owners: settled.owners, grid: territory.effectiveGrid(settled.owners, ids, villages) };
+}
+
+// What the map needs to draw the land: one byte per cell, and the villages in the
+// order the bytes count them.
+const territoryView = (land) => ({ grid: Buffer.from(land.grid).toString('base64'), ids: land.ids });
+
+// May this student take land for the village now? Returns { reason } or { village, radius }.
+async function claimCheck(supabase, user, tribeId, land, state, now) {
+  const village = land.villages.find((v) => v.id === tribeId);
+  if (!village) return { reason: 'This village has no place on the map yet.' };
+  if (village.shadow) return { reason: 'The dark villages cannot take land. They can only spread poison.' };
+  if (!(await presence.mayChangeCouncil(supabase, tribeId, user, now))) return { reason: 'The council has to meet in the village first: everybody gathers there and one starts the council.' };
+  const { data: council, error } = await supabase.from('councils').select('leader_user').eq('tribe_id', tribeId).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!council || council.leader_user !== user) return { reason: 'Only the council leader can take land.' };
+  const { data: last, error: lastErr } = await supabase.from('territory_claims').select('created_at').eq('tribe_id', tribeId).order('created_at', { ascending: false }).limit(1);
+  if (lastErr) throw new Error(lastErr.message);
+  if (last && last[0] && now - new Date(last[0].created_at) < territory.CLAIM_EVERY_MS) {
+    return { reason: 'Your village has taken land today.', next_at: new Date(new Date(last[0].created_at).getTime() + territory.CLAIM_EVERY_MS).toISOString() };
+  }
+  return { village, radius: territory.radiusFor((state.shields || {})[tribeId] || 0) };
+}
+
+// The buttons for the council leader: how much land each direction would give.
+async function claimPreview(supabase, user, tribeId, now = new Date()) {
+  const state = await loadState(supabase);
+  const land = await loadTerritory(supabase, state);
+  const check = await claimCheck(supabase, user, tribeId, land, state, now);
+  const cells = (land.grid.filter((v) => v === land.ids.indexOf(tribeId) + 1)).length;
+  if (!check.village) return { ok: true, can: false, reason: check.reason, next_at: check.next_at || null, cells };
+  return { ok: true, can: true, radius: check.radius, cells, options: territory.previews(land.grid, land.ids, tribeId, check.radius) };
+}
+
+// Takes land in one direction.
+async function claim(supabase, user, tribeId, direction, now = new Date()) {
+  const state = await loadState(supabase);
+  const land = await loadTerritory(supabase, state);
+  const check = await claimCheck(supabase, user, tribeId, land, state, now);
+  if (!check.village) return { ok: false, error: check.reason };
+  const plan = territory.planClaim(land.grid, land.ids, tribeId, direction, check.radius);
+  if (!plan || plan.cells.length < territory.MIN_NEW_CELLS) return { ok: false, error: 'There is not enough free land that way. Choose another direction.' };
+  const owners = territory.applyClaim(land.owners, land.ids, tribeId, plan);
+  const log = await supabase.from('territory_claims').insert({ tribe_id: tribeId, user_id: user, cx: plan.cx, cy: plan.cy, radius: plan.radius, cells: plan.cells.length });
+  if (log.error) throw new Error(log.error.message);
+  await saveState(supabase, { owners: territory.encodeOwners(owners) });
+  return { ok: true, taken: plan.cells.length };
+}
+
 function summary(state) {
   return {
     step: state.step,
@@ -160,4 +230,4 @@ function summary(state) {
   };
 }
 
-module.exports = { loadState, saveState, advance, cleanse, reset, summary, startTask, submitTask, loadTaskSettings, DEFAULTS, CLEANSE_COOLDOWN_MS, TASK_COOLDOWN_MS, MAX_SHIELD };
+module.exports = { loadTerritory, territoryView, claimPreview, claim, loadState, saveState, advance, cleanse, reset, summary, startTask, submitTask, loadTaskSettings, DEFAULTS, CLEANSE_COOLDOWN_MS, TASK_COOLDOWN_MS, MAX_SHIELD };

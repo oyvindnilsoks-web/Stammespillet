@@ -140,6 +140,8 @@ export function startPlay(container, content, { state, save }) {
       ctx.look = playerLook(content, progress.playingAs());
       // The poison of the evil villages: fetched when the world is shown and now and then.
       ctx.world = null;
+      // The council leader took land: show the new borders at once.
+      window.addEventListener('land-changed', () => ctx.reloadWorld?.());
       ctx.reloadWorld = async () => {
         try {
           ctx.world = await loadWorld();
