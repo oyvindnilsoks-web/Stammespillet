@@ -64,7 +64,7 @@ function noticesFor(councils, mine, names) {
   return list;
 }
 
-const COLUMNS = 'tribe_id, government, god, laws, allies, enemies, source_lang, original, leader_character_id';
+const COLUMNS = 'tribe_id, government, god, laws, allies, enemies, source_lang, original, leader_user';
 
 const handler = withSessionRenewal(async (event) => {
   const user = await requireUser(event);
@@ -78,27 +78,30 @@ const handler = withSessionRenewal(async (event) => {
     const names = new Map(approved.map((t) => [t.id, t.name]));
     const mine = await residentVillageIds(supabase, user, approvedIds);
 
-    // The villagers of the villages the student lives in: the leader is one of them.
-    const loadVillagers = async (ids) => {
-      if (!ids.length) return [];
-      const { data, error } = await supabase.from('characters').select('id, name, tribe_id, submitted_by').in('tribe_id', ids).eq('status', 'approved');
-      if (error) throw new Error(error.message);
-      return data;
+    // The people of each village the student lives in, with a name for each: the
+    // leader is one of them (whether or not they have written a villager).
+    const loadPeople = async (ids) => {
+      const out = new Map();
+      for (const id of ids) {
+        const residents = await presence.loadResidents(supabase, id);
+        out.set(id, { users: [...residents.keys()], labels: presence.labelsOf(residents) });
+      }
+      return out;
     };
 
     if (event.httpMethod === 'GET') {
-      const [{ data: rows, error }, { data: allCouncils, error: allErr }, villagers] = await Promise.all([
+      const [{ data: rows, error }, { data: allCouncils, error: allErr }, peopleOf] = await Promise.all([
         mine.length ? supabase.from('councils').select(COLUMNS).in('tribe_id', mine) : { data: [], error: null },
         supabase.from('councils').select('tribe_id, allies, enemies').in('tribe_id', [...approvedIds]),
-        loadVillagers(mine),
+        loadPeople(mine),
       ]);
       if (error || allErr) throw new Error((error || allErr).message);
       const byId = new Map(rows.map((r) => [r.tribe_id, r]));
       const councils = mine.map((id) => {
         const row = byId.get(id) || {};
-        const people = villagers.filter((v) => v.tribe_id === id);
-        const leader = people.find((v) => v.id === row.leader_character_id) || null;
-        const { leader_character_id, ...rest } = row;
+        const here = peopleOf.get(id);
+        const leaderUser = here.users.includes(row.leader_user) ? row.leader_user : null;
+        const { leader_user, ...rest } = row;
         return {
           tribe_id: id,
           name: names.get(id),
@@ -110,9 +113,9 @@ const handler = withSessionRenewal(async (event) => {
           source_lang: 'en',
           original: null,
           ...rest,
-          villagers: people.map((v) => ({ id: v.id, name: v.name, mine: v.submitted_by === user })),
-          leader: leader ? { id: leader.id, name: leader.name, is_me: leader.submitted_by === user } : null,
-          can_edit: !leader || leader.submitted_by === user,
+          people: here.users.map((u) => ({ pid: presence.pidOf(u), label: here.labels.get(u), mine: u === user })),
+          leader: leaderUser ? { pid: presence.pidOf(leaderUser), label: here.labels.get(leaderUser), is_me: leaderUser === user } : null,
+          can_edit: !leaderUser || leaderUser === user,
         };
       });
       return json(200, {
@@ -140,30 +143,26 @@ const handler = withSessionRenewal(async (event) => {
       return json(403, { error: 'The council can only be changed when all the villagers have gathered in the village and started the council.' });
     }
 
-    const [{ data: existing, error: existingErr }, people] = await Promise.all([
+    const [{ data: existing, error: existingErr }, peopleOf] = await Promise.all([
       supabase.from('councils').select(COLUMNS).eq('tribe_id', tribeId),
-      loadVillagers([tribeId]),
+      loadPeople([tribeId]),
     ]);
     if (existingErr) throw new Error(existingErr.message);
+    const here = peopleOf.get(tribeId);
     const current = existing && existing[0] ? existing[0] : null;
-    const currentLeader = current ? people.find((v) => v.id === current.leader_character_id) : null;
-    if (currentLeader && currentLeader.submitted_by !== user) {
-      return json(403, { error: `Only the council leader (${currentLeader.name}) can change the council.` });
+    const currentLeader = current && here.users.includes(current.leader_user) ? current.leader_user : null;
+    if (currentLeader && currentLeader !== user) {
+      return json(403, { error: `Only the council leader (${here.labels.get(currentLeader)}) can change the council.` });
     }
 
     // The leader after this save: the one chosen, or the same as before, or the
-    // student's own villager if there was no leader yet.
-    let leaderId = null;
-    if (body.leader_character_id !== undefined && body.leader_character_id !== null && body.leader_character_id !== '') {
-      const chosen = people.find((v) => v.id === String(body.leader_character_id));
-      if (!chosen) return json(400, { error: 'Choose a villager of this village as council leader.' });
-      leaderId = chosen.id;
-    } else if (currentLeader) {
-      leaderId = currentLeader.id;
+    // student themselves if there was no leader yet.
+    let leaderUser = null;
+    if (body.leader_pid !== undefined && body.leader_pid !== null && body.leader_pid !== '') {
+      leaderUser = here.users.find((u) => presence.pidOf(u) === String(body.leader_pid)) || null;
+      if (!leaderUser) return json(400, { error: 'Choose someone from this village as council leader.' });
     } else {
-      const own = people.find((v) => v.submitted_by === user);
-      if (!own) return json(400, { error: 'Choose a council leader.' });
-      leaderId = own.id;
+      leaderUser = currentLeader || user;
     }
 
     const { value, error: invalid } = cleanCouncil(body, approvedIds, tribeId);
@@ -174,7 +173,7 @@ const handler = withSessionRenewal(async (event) => {
       tribe_id: tribeId,
       allies: value.allies,
       enemies: value.enemies,
-      leader_character_id: leaderId,
+      leader_user: leaderUser,
       source_lang: 'en',
       original: null,
       updated_by: user,
@@ -194,7 +193,7 @@ const handler = withSessionRenewal(async (event) => {
 
     const { data: saved, error: saveErr } = await supabase.from('councils').upsert(row).select(COLUMNS).single();
     if (saveErr) throw new Error(saveErr.message);
-    const { leader_character_id, ...rest } = saved;
+    const { leader_user, ...rest } = saved;
     return json(200, { ok: true, council: rest });
   } catch (e) {
     console.error('Council failed:', e.message);

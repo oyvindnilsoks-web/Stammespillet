@@ -12,7 +12,7 @@ const TEXT = {
     loading: 'Loading…',
     intro: 'You decide this together with everyone who lives in your village. Choose one council leader: only the leader can save, so you do not overwrite each other. Allies are friends. Enemies cannot visit your village, and you cannot visit them.',
     none: 'You get a seat in the council when your village, or a villager you wrote, has been approved by the teacher.',
-    meetInVillage: 'The council meets in the village. When all the villagers are standing in the village in the game, a button appears for all of you to start the council. Here you can read what has been decided.',
+    meetInVillage: 'The council meets in the village. When everyone who belongs to the village (the group that made it, and those who wrote a villager) is standing in the village in the game, a button appears for all of you to start the council. Here you can read what has been decided.',
     government: 'How is the village ruled?',
     governmentHelp: 'A king, a council of elders, the strongest, everybody together…',
     god: 'Which god or gods do they believe in?',
@@ -20,9 +20,8 @@ const TEXT = {
     allies: 'Allies',
     enemies: 'Enemies',
     leader: 'Council leader',
-    leaderHelp: 'The villager whose student presses save for the whole council.',
+    leaderHelp: 'The one from the village who presses save for the whole council.',
     you: ' (you)',
-    noVillagers: 'Nobody can be leader before a villager of this village has been approved.',
     onlyLeader: (name) => `Only the council leader, <strong>${name}</strong>, can change the council. Talk to them if something should change.`,
     nothingYet: 'Nothing decided yet.',
     noOthers: 'There are no other villages yet.',
@@ -40,7 +39,7 @@ const TEXT = {
     loading: 'Laster …',
     intro: 'Dette bestemmer dere sammen med alle som bor i landsbyen. Velg én rådsleder: bare lederen kan lagre, så dere ikke skriver over hverandre. Allierte er venner. Fiender kan ikke besøke landsbyen deres, og dere kan ikke besøke dem.',
     none: 'Du får plass i rådet når landsbyen din, eller en innbygger du har skrevet, er godkjent av læreren.',
-    meetInVillage: 'Rådet møtes i landsbyen. Når alle innbyggerne står i landsbyen i spillet, dukker det opp en knapp til alle for å starte rådet. Her kan du lese hva som er bestemt.',
+    meetInVillage: 'Rådet møtes i landsbyen. Når alle som hører til landsbyen (gruppa som laget den, og de som har skrevet en innbygger) står i landsbyen i spillet, dukker det opp en knapp til alle for å starte rådet. Her kan du lese hva som er bestemt.',
     government: 'Hvordan styres landsbyen?',
     governmentHelp: 'En konge, et råd av eldre, den sterkeste, alle sammen …',
     god: 'Hvilken gud eller hvilke guder tror de på?',
@@ -48,9 +47,8 @@ const TEXT = {
     allies: 'Allierte',
     enemies: 'Fiender',
     leader: 'Rådsleder',
-    leaderHelp: 'Innbyggeren hvis elev trykker lagre for hele rådet.',
+    leaderHelp: 'Den fra landsbyen som trykker lagre for hele rådet.',
     you: ' (deg)',
-    noVillagers: 'Ingen kan bli leder før en innbygger fra landsbyen er godkjent.',
     onlyLeader: (name) => `Bare rådslederen, <strong>${name}</strong>, kan endre rådet. Snakk med dem hvis noe skal endres.`,
     nothingYet: 'Ingenting er bestemt ennå.',
     noOthers: 'Det finnes ingen andre landsbyer ennå.',
@@ -102,17 +100,15 @@ function card(council, villages, lang, t, translation, live) {
   // On the Contribute page the council is only read. In the game, while the
   // council meets, the leader can write it and the others read it live.
   if (!live || !council.can_edit) {
-    const note = live && council.leader ? t.onlyLeader(h(council.leader.name)) : t.meetInVillage;
+    const note = live && council.leader ? t.onlyLeader(h(council.leader.label)) : t.meetInVillage;
     return `<section class="charter-section council" data-council="${h(council.tribe_id)}">${head}
       <p class="charter-lede">${note}</p>${readOnly(council, villages, t)}</section>`;
   }
 
-  const chosenLeader = council.leader ? council.leader.id : (council.villagers.find((v) => v.mine) || {}).id;
-  const leaderOptions = council.villagers.length
-    ? `<select name="leader">${council.villagers
-        .map((v) => `<option value="${h(v.id)}" ${v.id === chosenLeader ? 'selected' : ''}>${h(v.name)}${v.mine ? t.you : ''}</option>`)
-        .join('')}</select>`
-    : `<p class="muted">${t.noVillagers}</p>`;
+  const chosenLeader = council.leader ? council.leader.pid : (council.people.find((p) => p.mine) || {}).pid;
+  const leaderOptions = `<select name="leader">${council.people
+    .map((p) => `<option value="${h(p.pid)}" ${p.pid === chosenLeader ? 'selected' : ''}>${h(p.label)}${p.mine ? t.you : ''}</option>`)
+    .join('')}</select>`;
   return `<section class="charter-section council" data-council="${h(council.tribe_id)}">${head}
     <label class="charter-field"><span class="field-label">${t.leader}</span><span class="muted"> ${t.leaderHelp}</span>${leaderOptions}</label>
     <label class="charter-field"><span class="field-label">${t.government}</span><input type="text" name="government" maxlength="300" value="${h(value('government'))}" placeholder="${h(t.governmentHelp)}"></label>
@@ -120,7 +116,7 @@ function card(council, villages, lang, t, translation, live) {
     <label class="charter-field"><span class="field-label">${t.laws}</span><textarea name="laws" rows="4" maxlength="800">${h(value('laws'))}</textarea></label>
     <div class="charter-field"><span class="field-label">${t.allies}</span><div class="council-checks">${noOthers ? `<p class="muted">${t.noOthers}</p>` : checks('allies', villages, council.tribe_id, council.allies)}</div></div>
     <div class="charter-field"><span class="field-label">${t.enemies}</span><div class="council-checks">${noOthers ? '' : checks('enemies', villages, council.tribe_id, council.enemies)}</div></div>
-    <div class="council-actions"><button type="button" class="choice-btn" data-save ${council.villagers.length ? '' : 'disabled'}>${t.save}</button> <span class="muted" data-status role="status"></span></div>
+    <div class="council-actions"><button type="button" class="choice-btn" data-save>${t.save}</button> <span class="muted" data-status role="status"></span></div>
   </section>`;
 }
 
@@ -176,7 +172,7 @@ export async function renderCouncil(host, options) {
         await saveCouncil({
           tribe_id: section.dataset.council,
           lang: lang === 'no' && data.translation ? 'no' : 'en',
-          leader_character_id: section.querySelector('[name="leader"]')?.value || null,
+          leader_pid: section.querySelector('[name="leader"]')?.value || null,
           government: val('government'),
           god: val('god'),
           laws: val('laws'),
@@ -187,7 +183,7 @@ export async function renderCouncil(host, options) {
         // Handing over the leadership: show the council as the new leader's.
         const before = data.councils.find((c) => c.tribe_id === section.dataset.council);
         const chosen = section.querySelector('[name="leader"]')?.value;
-        if (before && before.leader && chosen && before.leader.id !== chosen) setTimeout(() => renderCouncil(host, options), 600);
+        if (before && before.leader && chosen && before.leader.pid !== chosen) setTimeout(() => renderCouncil(host, options), 600);
       } catch (err) {
         status.textContent = err.code === 'translation_unavailable' ? t.translateFailed : err.message || t.failed;
       } finally {

@@ -435,7 +435,7 @@ export function createVillageScene(Phaser, ctx) {
         } else if (s.ready) {
           opened = false;
           ctx.ui.setCouncilBar({
-            text: 'All the villagers are here.',
+            text: 'Everyone from the village is here.',
             label: 'Start the village council',
             onClick: async () => {
               const r = await ctxp.start(tribe.id);
@@ -447,7 +447,7 @@ export function createVillageScene(Phaser, ctx) {
           });
         } else {
           opened = false;
-          ctx.ui.setCouncilBar({ text: `Council: ${s.here.length} of ${s.total} villagers are here. Waiting for ${s.missing.join(', ')}.` });
+          ctx.ui.setCouncilBar({ text: `Council: ${s.here.length} of ${s.total} from the village are here. Waiting for ${s.missing.join(', ')}.` });
         }
       };
       poll();

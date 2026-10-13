@@ -2,10 +2,11 @@
 // gathered so that the village council can meet. The game sends a heartbeat every
 // few seconds; a heartbeat older than 30 seconds means the student has left.
 //
-// "The villagers" of a village are the students who wrote a villager for it (and
-// the teacher has approved). The council can start when all of them are in the
-// village at the same time, and there are at least two. It is open for half an
-// hour, and only while at least two of them are still there.
+// The people of a village are all the students who belong to it: the student who
+// started the village, the students who joined it with the group code, and the
+// students who wrote a villager for it (the teacher has approved). The council can
+// start when all of them are in the village at the same time, and there are at least
+// two. It is open for half an hour, and only while at least two of them are still there.
 
 const crypto = require('crypto');
 const { validFigure } = require('./figures');
@@ -25,16 +26,41 @@ async function beat(supabase, user, tribeId, now = new Date()) {
   if (error) throw new Error(error.message);
 }
 
+// Everyone who belongs to a village, as a map from user id to the names of their
+// villagers (empty for someone who only belongs to the group that made it). The ones
+// who wrote a villager come first.
+async function loadResidents(supabase, tribeId) {
+  const { data: villagers, error } = await supabase.from('characters').select('id, name, submitted_by').eq('tribe_id', tribeId).eq('status', 'approved');
+  if (error) throw new Error(error.message);
+  const people = new Map();
+  for (const v of villagers) {
+    if (!v.submitted_by) continue;
+    people.set(v.submitted_by, [...(people.get(v.submitted_by) || []), v.name]);
+  }
+  const [owner, members] = await Promise.all([
+    supabase.from('tribes').select('submitted_by').eq('id', tribeId).maybeSingle(),
+    supabase.from('village_members').select('user_id').eq('tribe_id', tribeId),
+  ]);
+  const groupErr = owner.error || members.error;
+  if (groupErr) throw new Error(groupErr.message);
+  for (const u of [owner.data && owner.data.submitted_by, ...(members.data || []).map((m) => m.user_id)].filter(Boolean)) {
+    if (!people.has(u)) people.set(u, []);
+  }
+  return people;
+}
+
+// What to call each of them to the others: the name of their villager, never their
+// own name; "Group member 1", "Group member 2" for those without a villager.
+function labelsOf(people) {
+  let n = 0;
+  return new Map([...people].map(([user, names]) => [user, names.length ? names.join(' / ') : `Group member ${++n}`]));
+}
+
 // The state of the gathering in one village, as one of its villagers sees it.
 // Only the villagers get more than { resident: false }.
 async function stateFor(supabase, tribeId, user, now = new Date()) {
-  const { data: villagers, error } = await supabase.from('characters').select('id, name, submitted_by').eq('tribe_id', tribeId).eq('status', 'approved');
-  if (error) throw new Error(error.message);
-  const namesByUser = new Map();
-  for (const v of villagers) {
-    if (!v.submitted_by) continue;
-    namesByUser.set(v.submitted_by, [...(namesByUser.get(v.submitted_by) || []), v.name]);
-  }
+  const namesByUser = await loadResidents(supabase, tribeId);
+  const labels = labelsOf(namesByUser);
   const residents = [...namesByUser.keys()];
   if (!residents.includes(user)) return { resident: false };
 
@@ -42,7 +68,7 @@ async function stateFor(supabase, tribeId, user, now = new Date()) {
   if (rowsErr) throw new Error(rowsErr.message);
   const fresh = (row) => row.tribe_id === tribeId && now - new Date(row.seen_at) < FRESH_MS;
   const hereIds = new Set(rows.filter(fresh).map((r) => r.user_id));
-  const label = (id) => namesByUser.get(id).join(' / ');
+  const label = (id) => labels.get(id);
 
   const { data: session, error: sessionErr } = await supabase.from('council_sessions').select('tribe_id, started_at').eq('tribe_id', tribeId).maybeSingle();
   if (sessionErr) throw new Error(sessionErr.message);
@@ -171,4 +197,4 @@ async function resolvePid(supabase, pid, now = new Date()) {
   return hit ? hit.user_id : null;
 }
 
-module.exports = { beat, stateFor, startCouncil, mayChangeCouncil, beatWorld, worldState, resolvePid, pidOf, beatOnline, onlineList, ONLINE_FRESH_MS, FRESH_MS, SESSION_MS, WORLD_FRESH_MS };
+module.exports = { loadResidents, labelsOf, beat, stateFor, startCouncil, mayChangeCouncil, beatWorld, worldState, resolvePid, pidOf, beatOnline, onlineList, ONLINE_FRESH_MS, FRESH_MS, SESSION_MS, WORLD_FRESH_MS };
