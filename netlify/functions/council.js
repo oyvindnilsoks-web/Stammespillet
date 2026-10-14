@@ -15,7 +15,7 @@ const landclaims = require('./_lib/landclaims');
 // each other. The villages named as allies or enemies are told.
 
 const TEXT_FIELDS = { government: 300, god: 300, laws: 800 };
-const MAX_LINKS = 8;
+const MAX_LINKS = 2; // at most two allies and two enemies
 
 function json(statusCode, body) {
   return { statusCode, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' }, body: JSON.stringify(body) };
@@ -44,8 +44,9 @@ function cleanCouncil(body, approvedIds, selfId) {
   }
   for (const key of ['allies', 'enemies']) {
     const raw = body[key] === undefined ? [] : body[key];
-    if (!Array.isArray(raw) || raw.length > MAX_LINKS || raw.some((id) => typeof id !== 'string')) return { error: 'Invalid answers' };
+    if (!Array.isArray(raw) || raw.some((id) => typeof id !== 'string')) return { error: 'Invalid answers' };
     const unique = [...new Set(raw)];
+    if (unique.length > MAX_LINKS) return { error: 'Choose at most two allies and two enemies.' };
     if (unique.some((id) => id === selfId || !approvedIds.has(id))) return { error: 'Choose other villages from the list.' };
     value[key] = unique;
   }

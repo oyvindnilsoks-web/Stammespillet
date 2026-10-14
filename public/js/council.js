@@ -347,13 +347,26 @@ export async function renderCouncil(host, options) {
   }
 
   // A village is an ally or an enemy, not both: ticking one clears the other.
+  // And at most two of each: when two are ticked, the others cannot be ticked.
+  const limitTicks = (section) => {
+    for (const name of ['allies', 'enemies']) {
+      const boxes = [...section.querySelectorAll(`input[name="${name}"]`)];
+      const full = boxes.filter((b) => b.checked).length >= 2;
+      boxes.forEach((b) => (b.disabled = full && !b.checked));
+    }
+  };
+  host.querySelectorAll('[data-council]').forEach(limitTicks);
   host.addEventListener('change', (e) => {
     const box = e.target;
-    if (!(box instanceof HTMLInputElement) || box.type !== 'checkbox' || !box.checked) return;
-    const other = box.name === 'allies' ? 'enemies' : 'allies';
-    box.closest('[data-council]').querySelectorAll(`input[name="${other}"]`).forEach((o) => {
-      if (o.value === box.value) o.checked = false;
-    });
+    if (!(box instanceof HTMLInputElement) || box.type !== 'checkbox') return;
+    const section = box.closest('[data-council]');
+    if (box.checked) {
+      const other = box.name === 'allies' ? 'enemies' : 'allies';
+      section.querySelectorAll(`input[name="${other}"]`).forEach((o) => {
+        if (o.value === box.value) o.checked = false;
+      });
+    }
+    limitTicks(section);
   });
 
   // The land: how much each direction would give, for the leader while the council meets.

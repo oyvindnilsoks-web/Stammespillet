@@ -73,6 +73,11 @@ const TEXT = {
     joining: 'Joining…',
     joined: (name) => `You joined ${name}.`,
     joinNoCode: 'Write the group code first.',
+    relationsTitle: 'Friends and enemies',
+    relationsHelp: 'Choose at most two allies and two enemies from the other villages. Enemies cannot visit each other. Later, the village council decides this by voting.',
+    alliesLabel: 'Allies (friends)',
+    enemiesLabel: 'Enemies',
+    relationsNone: 'There are no other villages yet.',
     picturesTitle: 'Pictures',
     picturesHelp: 'Add pictures of famous places and other things in your village. Drawings work best. Please do not upload photos of people.',
     picturesFirst: 'Press Send to teacher first. Then you can add pictures here.',
@@ -152,6 +157,11 @@ const TEXT = {
     joining: 'Blir med…',
     joined: (name) => `Du er med i ${name}.`,
     joinNoCode: 'Skriv gruppekoden først.',
+    relationsTitle: 'Venner og fiender',
+    relationsHelp: 'Velg høyst to allierte og to fiender blant de andre landsbyene. Fiender kan ikke besøke hverandre. Senere bestemmer landsrådet dette ved avstemning.',
+    alliesLabel: 'Allierte (venner)',
+    enemiesLabel: 'Fiender',
+    relationsNone: 'Det finnes ingen andre landsbyer ennå.',
     picturesTitle: 'Bilder',
     picturesHelp: 'Legg til bilder av kjente steder og andre ting i landsbyen. Tegninger fungerer best. Ikke last opp bilder av mennesker.',
     picturesFirst: 'Trykk først Send til læreren. Da kan du legge til bilder her.',
@@ -290,11 +300,15 @@ function removeLocal(kind, ref) {
 }
 
 function normalizeForm(kind, raw) {
-  const base = kind === 'village' ? { type: 'village', charter: {}, map: null } : { type: 'villager', charter: {}, tribe_id: '', sprite: null };
+  const base = kind === 'village' ? { type: 'village', charter: {}, map: null, allies: [], enemies: [] } : { type: 'villager', charter: {}, tribe_id: '', sprite: null };
   const out = { ...base, lang, ...(raw && typeof raw === 'object' ? raw : {}) };
   out.charter = { ...(out.charter || {}) };
   out.lang = out.lang === 'no' ? 'no' : 'en';
   if (kind === 'village' && out.type !== 'village' && out.type !== 'shadow') out.type = 'village';
+  if (kind === 'village') {
+    out.allies = Array.isArray(out.allies) ? out.allies.filter((x) => typeof x === 'string').slice(0, 2) : [];
+    out.enemies = Array.isArray(out.enemies) ? out.enemies.filter((x) => typeof x === 'string').slice(0, 2) : [];
+  }
   if (kind === 'villager') out.type = 'villager';
   return out;
 }
@@ -488,6 +502,8 @@ function formFromSubmission(kind, sub) {
       lang: formLang,
       charter,
       map: Number.isFinite(t.map_x) && Number.isFinite(t.map_y) ? { x: t.map_x, y: t.map_y } : null,
+      allies: sub.allies || [],
+      enemies: sub.enemies || [],
     };
   }
   return { type: 'villager', lang: formLang, charter, tribe_id: sub.tribe_id || '', sprite: Number.isInteger(sub.sprite) ? sub.sprite : null };
@@ -700,7 +716,7 @@ function renderForm() {
     ${restored[kind] ? `<p class="restored-note">${t.restored(sendLabel)}</p>` : ''}
     ${top}
     ${renderSections(kind)}
-    ${kind === 'village' ? renderPictures() : renderVillagerExtras()}
+    ${kind === 'village' ? renderRelations() + renderPictures() : renderVillagerExtras()}
     <div class="submit-row">
       <button class="choice-btn" id="send-btn" ${data.open ? '' : 'disabled'}>${sendLabel}</button>
       <span id="send-status" class="muted" role="status"></span>
@@ -725,7 +741,7 @@ function wireForm(kind) {
 
   formEl.addEventListener('input', (e) => {
     const t = e.target;
-    if (t.name === 'charter-type') return;
+    if (t.name === 'charter-type' || (t.name && t.name.startsWith('rel-'))) return;
     if (t.name === 'tribe_id') form[kind].tribe_id = t.value;
     else if (t.name) form[kind].charter[t.name] = t.value;
     saveDraft(kind);
@@ -755,6 +771,15 @@ function wireForm(kind) {
     });
   }
 
+  if (kind === 'village') {
+    syncRelations(formEl, null);
+    formEl.addEventListener('change', (e) => {
+      if (e.target.name === 'rel-allies' || e.target.name === 'rel-enemies') {
+        syncRelations(formEl, e.target);
+        saveDraft('village');
+      }
+    });
+  }
   formEl.querySelector('#send-btn').addEventListener('click', () => send(kind));
   formEl.querySelector('#join-btn')?.addEventListener('click', joinGroup);
   formEl.querySelector('#pic-add-btn')?.addEventListener('click', addPicture);
@@ -783,6 +808,46 @@ const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'];
 // first send there is only a note.
 const ownVillageOf = () => data.mine.villages.find((v) => v.status === 'pending' || v.status === 'approved') || null;
 const ownVillagerOf = () => data.mine.villagers.find((v) => v.status === 'pending' || v.status === 'approved') || null;
+
+// Allies and enemies, chosen when the village is set up: at most two of each, from the
+// other villages (the ones waiting for the teacher too).
+function renderRelations() {
+  const t = L();
+  const others = data.villages.filter((v) => !editing.village || v.id !== editing.village.id);
+  const own = data.mine.villages.map((v) => v.id);
+  const list = others.filter((v) => !own.includes(v.id));
+  const group = (key, label) => {
+    const chosen = form.village[key] || [];
+    const boxes = list
+      .map((v) => `<label class="council-check"><input type="checkbox" name="rel-${key}" value="${escapeHtml(v.id)}" ${chosen.includes(v.id) ? 'checked' : ''}> ${escapeHtml(v.name)}${v.status === 'pending' ? t.waiting : ''}</label>`)
+      .join('');
+    return `<div class="charter-field"><span class="field-label">${label}</span><div class="council-checks">${boxes}</div></div>`;
+  };
+  return `<section class="charter-section relations">
+    <div class="charter-head"><span class="charter-num"></span><div><h3>${t.relationsTitle}</h3></div></div>
+    <p class="charter-lede">${t.relationsHelp}</p>
+    ${list.length ? group('allies', t.alliesLabel) + group('enemies', t.enemiesLabel) : `<p class="muted">${t.relationsNone}</p>`}
+  </section>`;
+}
+
+// The ticks for allies and enemies: at most two of each, and never the same village in both.
+function syncRelations(formEl, changed) {
+  const boxes = (key) => [...formEl.querySelectorAll(`input[name="rel-${key}"]`)];
+  if (changed && changed.checked) {
+    const other = changed.name === 'rel-allies' ? 'enemies' : 'allies';
+    boxes(other).forEach((b) => {
+      if (b.value === changed.value) b.checked = false;
+    });
+  }
+  for (const key of ['allies', 'enemies']) {
+    const all = boxes(key);
+    const ticked = all.filter((b) => b.checked);
+    if (ticked.length > 2 && changed) changed.checked = false;
+    const now = all.filter((b) => b.checked);
+    all.forEach((b) => (b.disabled = !b.checked && now.length >= 2));
+    form.village[key] = now.map((b) => b.value);
+  }
+}
 
 function renderPictures(sub = editing.village) {
   const t = L();
@@ -1025,8 +1090,11 @@ async function send(kind) {
       else if (field.default) charter[field.key] = field.default;
     }
     const payload = { type: f.type, lang, id: editing[kind]?.id, charter };
-    if (kind === 'village') payload.map = f.map;
-    else {
+    if (kind === 'village') {
+      payload.map = f.map;
+      payload.allies = f.allies || [];
+      payload.enemies = f.enemies || [];
+    } else {
       payload.tribe_id = f.tribe_id;
       payload.sprite = f.sprite ?? null;
     }

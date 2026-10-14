@@ -269,6 +269,19 @@ async function handleGet(supabase, user) {
     media = media.concat(mediaRows);
   }
 
+  // The allies and enemies of the student's villages, to show in the form.
+  const councilIds = myVillagesRes.data.map((v) => v.id);
+  if (councilIds.length) {
+    const { data: rel, error: relErr } = await supabase.from('councils').select('tribe_id, allies, enemies').in('tribe_id', councilIds);
+    if (relErr) return json(500, { error: relErr.message });
+    const byTribe = new Map(rel.map((r) => [r.tribe_id, r]));
+    for (const v of myVillagesRes.data) {
+      const r = byTribe.get(v.id);
+      v.allies = r ? r.allies || [] : [];
+      v.enemies = r ? r.enemies || [] : [];
+    }
+  }
+
   return json(200, {
     me: user,
     open,
@@ -277,6 +290,36 @@ async function handleGet(supabase, user) {
     villages: villagesRes.data,
     mine: { villages: myVillagesRes.data, villagers: myVillagersRes.data, media },
   });
+}
+
+// Allies and enemies chosen when the village is set up: at most two of each, picked from the
+// villages that exist, never the village itself and never the same one as both. Returns
+// { allies, enemies } (or null when the form sent nothing about it) or { error }.
+const MAX_RELATIONS = 2;
+async function cleanRelations(supabase, body, selfId) {
+  if (body.allies === undefined && body.enemies === undefined) return null;
+  const out = {};
+  const { data: tribes, error } = await supabase.from('tribes').select('id').in('status', ['pending', 'approved']);
+  if (error) throw new Error(error.message);
+  const known = new Set(tribes.map((t) => t.id));
+  for (const key of ['allies', 'enemies']) {
+    const raw = body[key] === undefined ? [] : body[key];
+    if (!Array.isArray(raw) || raw.some((id) => typeof id !== 'string')) return { error: 'Invalid answers' };
+    const unique = [...new Set(raw)];
+    if (unique.length > MAX_RELATIONS) return { error: 'Choose at most two allies and two enemies.' };
+    if (unique.some((id) => id === selfId || !known.has(id))) return { error: 'Choose other villages from the list.' };
+    out[key] = unique;
+  }
+  if (out.allies.some((id) => out.enemies.includes(id))) return { error: 'A village cannot be both an ally and an enemy.' };
+  return out;
+}
+
+// The allies and enemies live in the council of the village, the same place the council
+// changes them later (by voting).
+async function saveRelations(supabase, user, tribeId, relations) {
+  if (!relations) return null;
+  const { error } = await supabase.from('councils').upsert({ tribe_id: tribeId, allies: relations.allies, enemies: relations.enemies, updated_by: user, updated_at: new Date().toISOString() });
+  return error ? error.message : null;
 }
 
 async function saveVillage(supabase, user, body, charter, name, extra) {
@@ -302,13 +345,19 @@ async function saveVillage(supabase, user, body, charter, name, extra) {
     if (!existing || !(await mayEditVillage(supabase, existing, user))) return json(404, { error: 'Submission not found' });
     if (existing.status !== 'pending') return json(409, { error: 'This village has already been reviewed by your teacher.' });
 
+    const relations = await cleanRelations(supabase, body, existing.id);
+    if (relations && relations.error) return json(400, { error: relations.error });
     const territory = { ...(existing.territory || {}), ...(map || {}) };
     const { error: upErr } = await supabase.from('tribes').update({ ...fields, territory }).eq('id', existing.id);
     if (upErr) return json(500, { error: upErr.message });
+    const relErr = await saveRelations(supabase, user, existing.id, relations);
+    if (relErr) return json(500, { error: relErr });
     return json(200, { ok: true, id: existing.id });
   }
 
   if (await hasVillage(supabase, user)) return json(409, { error: ONE_VILLAGE });
+  const relations = await cleanRelations(supabase, body, null);
+  if (relations && relations.error) return json(400, { error: relations.error });
 
   const id = newId('tribe', name);
   // The code has to be unique; in the rare case of a clash, try another one.
@@ -329,6 +378,8 @@ async function saveVillage(supabase, user, body, charter, name, extra) {
   if (insErr) return json(500, { error: insErr.message });
   const { error: memberErr } = await supabase.from('village_members').insert({ tribe_id: id, user_id: user });
   if (memberErr) console.error('Could not add the creator to the group:', memberErr.message);
+  const relErr = await saveRelations(supabase, user, id, relations);
+  if (relErr) console.error('Could not save allies and enemies:', relErr);
   return json(200, { ok: true, id });
 }
 
