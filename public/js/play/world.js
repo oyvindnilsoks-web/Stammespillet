@@ -9,9 +9,9 @@ import { mediaUrl } from '../content.js';
 const MAP_W = 1400; // size of the picture of the map
 const MAP_H = 1059;
 export const WORLD_SCALE = 2;
-const SPEED = 300; // pixels per second on land
-const SWIM_SPEED = 190;
-const CLIMB_SPEED = 150;
+const SPEED = 150; // pixels per second on land (half of what it was)
+const SWIM_SPEED = 95;
+const CLIMB_SPEED = 75;
 const ENTER_DISTANCE = 56;
 const SIGN_SCALE = 3;
 

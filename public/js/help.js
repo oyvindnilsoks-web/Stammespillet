@@ -14,7 +14,7 @@ const STUDENT = `
   <li><h4>Bli med i gruppa <span class="tag">De andre</span></h4>
     <p>Skriv gruppekoden (seks bokstaver og tall) under <strong>Bli med i gruppa</strong> og trykk <span class="k">Bli med</span>. Da er du med i landsbyen.</p></li>
   <li><h4>Skriv inn innbyggeren din <span class="tag">Alle</span></h4>
-    <p>Trykk fanen <span class="k">Min innbygger</span>, velg landsbyen din, skriv navn, alder og jobb, utseende og personlighet, og velg en av de 60 figurene. Trykk <span class="k">Send til læreren</span>. Du kan bare lage <strong>én</strong> innbygger. Etterpå kan du endre den til læreren har godkjent den.</p></li>
+    <p>Trykk fanen <span class="k">Min innbygger</span>, velg landsbyen din, skriv navn, alder og jobb, velg pronomen (he, she eller it), skriv om utseende og personlighet, og velg en av de 60 figurene. Trykk <span class="k">Send til læreren</span>. Du kan bare lage <strong>én</strong> innbygger. Etterpå kan du endre den til læreren har godkjent den.</p></li>
   <li><h4>Se om læreren har godkjent</h4>
     <p>Under <strong>Mine innsendinger</strong> ser du <em>Venter på læreren</em>, <em>Godkjent</em> eller <em>Ikke godkjent</em>. Du kan trykke <span class="k">Rediger</span> så lenge den venter. Når den er godkjent, er den med i spillet. Bilder kan du legge til på landsbyen og innbyggeren når som helst.</p></li>
   <li><h4>Teksten din blir lagret</h4>

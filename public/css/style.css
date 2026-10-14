@@ -815,3 +815,6 @@ main.wide { max-width: 1000px; }
   .help-card { animation: none; opacity: 1; transform: none; }
   .help-panel, .help-modal { transition: none; }
 }
+
+.choice-row { display: flex; gap: 1.2rem; margin-top: 0.3rem; }
+.choice-inline { display: inline-flex; gap: 0.4rem; align-items: center; }

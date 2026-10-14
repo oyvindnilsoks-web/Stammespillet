@@ -11,7 +11,7 @@ const SCALE = 3;
 const T = TILE * SCALE; // a tile on the screen
 const COLS = 22;
 const ROWS = 15;
-const SPEED = 230;
+const SPEED = 115; // half of what it was
 const TALK_DISTANCE = 84;
 
 // Tile numbers in the "town" sheet (12 per row, Kenney Tiny Town).

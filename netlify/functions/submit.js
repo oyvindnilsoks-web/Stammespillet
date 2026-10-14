@@ -333,6 +333,10 @@ async function saveVillage(supabase, user, body, charter, name, extra) {
 }
 
 async function saveVillager(supabase, user, body, charter, name, extra) {
+  // he, she or it; anything else is he.
+  if (!['he', 'she', 'it'].includes(charter.pronoun)) charter.pronoun = 'he';
+  if (extra.original && typeof extra.original === 'object') extra.original.pronoun = charter.pronoun;
+
   const tribeId = String(body.tribe_id || '');
   const { data: tribe, error: tribeErr } = await supabase
     .from('tribes')

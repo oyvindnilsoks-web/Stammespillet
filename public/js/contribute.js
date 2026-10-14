@@ -588,6 +588,13 @@ function renderField(field, value) {
         ? `<span class="field-label">${escapeHtml(field.labelNo || field.label)}${star}</span>`
         : `<span class="field-label">${escapeHtml(field.label)}${star} <span class="no-help">${escapeHtml(field.labelNo || '')}</span></span>`;
   }
+  if (field.type === 'choice') {
+    const chosen = value || field.default;
+    const options = field.options
+      .map((o) => `<label class="choice-inline"><input type="radio" name="${field.key}" value="${escapeHtml(o)}" ${chosen === o ? 'checked' : ''}> ${escapeHtml(o)}</label>`)
+      .join('');
+    return `<div class="charter-field">${label}<div class="choice-row">${options}</div></div>`;
+  }
   const input =
     field.type === 'text'
       ? `<input type="text" name="${field.key}" maxlength="${field.key === 'name' ? 60 : 200}" value="${escapeHtml(value || '')}">`
@@ -1015,6 +1022,7 @@ async function send(kind) {
     const charter = {};
     for (const field of allFields(f.type)) {
       if (f.charter[field.key]) charter[field.key] = f.charter[field.key];
+      else if (field.default) charter[field.key] = field.default;
     }
     const payload = { type: f.type, lang, id: editing[kind]?.id, charter };
     if (kind === 'village') payload.map = f.map;

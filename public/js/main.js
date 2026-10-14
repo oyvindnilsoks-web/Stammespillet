@@ -92,8 +92,8 @@ function renderNav(authenticated, displayTag) {
   startOnline();
   nav.innerHTML = `
     <span class="muted">Logged in${displayTag ? ` (${escapeHtml(displayTag)})` : ''}</span>
-    <button id="nav-contribute">Contribute</button>
     <button id="nav-play">Play</button>
+    <button id="nav-contribute">Contribute</button>
     <button id="nav-lexicon">Clan Lexicon</button>
     <button id="nav-gallery">Gallery</button>
     <button id="nav-online" title="Who is online now">Online <span class="online-badge" id="online-count">·</span></button>
@@ -236,9 +236,9 @@ async function init() {
       }
     : { chosen_character: null, current_scene: null, flags: {}, visited_tribes: [] };
 
-  // While the class is collecting villages and villagers, Contribute is the
-  // landing page; Play is one click away in the menu.
-  showContribute();
+  // The game is the landing page. Contribute (where villages and villagers are written)
+  // is one click away in the menu.
+  showPlay();
 }
 
 init().catch((err) => {

@@ -18,6 +18,7 @@ const both = (no, en) => `${esc(no)}${en && en !== no ? ` <span class="en">${esc
 
 function field(f) {
   const label = f.label ? `<div class="label">${both(f.labelNo || f.label, f.labelNo ? f.label : '')}</div>` : '';
+  if (f.type === 'choice') return `<div class="field">${label}<div class="line">${f.options.map((o) => `☐ ${esc(o)}`).join('&nbsp;&nbsp;&nbsp;')}</div></div>`;
   return `<div class="field">${label}<div class="${f.type === 'text' ? 'line' : 'box'}"></div></div>`;
 }
 

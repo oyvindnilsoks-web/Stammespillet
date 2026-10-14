@@ -161,6 +161,8 @@ const VILLAGER = [
       { key: 'name', label: 'Name', labelNo: 'Navn', type: 'text', required: true },
       { key: 'age', label: 'Age', labelNo: 'Alder', type: 'text' },
       { key: 'role', label: 'Job', labelNo: 'Jobb', type: 'text' },
+      // he, she or it: how the others in the game talk about the villager. Without an answer it is he.
+      { key: 'pronoun', label: 'Pronoun (he, she or it)', labelNo: 'Pronomen (he, she eller it)', type: 'choice', options: ['he', 'she', 'it'], default: 'he' },
     ],
   },
   {
