@@ -3,6 +3,7 @@ const tasks = require('./tasks');
 const { residentVillageIds } = require('./residents');
 const territory = require('./territory');
 const presence = require('./presence');
+const proposals = require('./proposals');
 
 // The shared world in the database: loading it, moving the poison one step, and
 // cleaning around a village. The rules of the poison itself are in poison.js.
@@ -175,14 +176,17 @@ async function loadTerritory(supabase, state) {
 const territoryView = (land) => ({ grid: Buffer.from(land.grid).toString('base64'), ids: land.ids });
 
 // May this student take land for the village now? Returns { reason } or { village, radius }.
-async function claimCheck(supabase, user, tribeId, land, state, now) {
+async function claimCheck(supabase, user, tribeId, land, state, now, { voted = false } = {}) {
   const village = land.villages.find((v) => v.id === tribeId);
   if (!village) return { reason: 'This village has no place on the map yet.' };
   if (village.shadow) return { reason: 'The dark villages cannot take land. They can only spread poison.' };
-  if (!(await presence.mayChangeCouncil(supabase, tribeId, user, now))) return { reason: 'The council has to meet in the village first: everybody gathers there and one starts the council.' };
-  const { data: council, error } = await supabase.from('councils').select('leader_user').eq('tribe_id', tribeId).maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!council || council.leader_user !== user) return { reason: 'Only the council leader can take land.' };
+  // The council and the leader were checked when the land was proposed; after the vote only the daily limit is checked again.
+  if (!voted) {
+    if (!(await presence.mayChangeCouncil(supabase, tribeId, user, now))) return { reason: 'The council has to meet in the village first: everybody gathers there and one starts the council.' };
+    const { data: council, error } = await supabase.from('councils').select('leader_user').eq('tribe_id', tribeId).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!council || council.leader_user !== user) return { reason: 'Only the council leader can take land.' };
+  }
   const { data: last, error: lastErr } = await supabase.from('territory_claims').select('created_at').eq('tribe_id', tribeId).order('created_at', { ascending: false }).limit(1);
   if (lastErr) throw new Error(lastErr.message);
   if (last && last[0] && now - new Date(last[0].created_at) < territory.CLAIM_EVERY_MS) {
@@ -201,11 +205,27 @@ async function claimPreview(supabase, user, tribeId, now = new Date()) {
   return { ok: true, can: true, radius: check.radius, cells, options: territory.previews(land.grid, land.ids, tribeId, check.radius) };
 }
 
-// Takes land in one direction.
-async function claim(supabase, user, tribeId, direction, now = new Date()) {
+// The council leader proposes to take land in one direction. The villagers vote on it
+// (see proposals.js); the land is taken when it has passed.
+async function proposeLand(supabase, user, tribeId, direction, now = new Date()) {
   const state = await loadState(supabase);
   const land = await loadTerritory(supabase, state);
   const check = await claimCheck(supabase, user, tribeId, land, state, now);
+  if (!check.village) return { ok: false, error: check.reason };
+  const plan = territory.planClaim(land.grid, land.ids, tribeId, direction, check.radius);
+  if (!plan || plan.cells.length < territory.MIN_NEW_CELLS) return { ok: false, error: 'There is not enough free land that way. Choose another direction.' };
+  const label = (territory.DIRECTIONS.find((d) => d.id === direction) || {}).label || direction;
+  const residents = await proposals.residentsOf(supabase, tribeId);
+  const made = await proposals.create(supabase, user, tribeId, 'land', { direction, summary: [`Take ${plan.cells.length} squares of land to the ${label.toLowerCase()}.`] }, residents, now);
+  if (!made.ok) return made;
+  return { ok: true, proposed: true, proposal: proposals.view(made.proposal, residents, user) };
+}
+
+// Takes land in one direction, now. voted: the villagers have said yes.
+async function claimNow(supabase, user, tribeId, direction, now = new Date()) {
+  const state = await loadState(supabase);
+  const land = await loadTerritory(supabase, state);
+  const check = await claimCheck(supabase, user, tribeId, land, state, now, { voted: true });
   if (!check.village) return { ok: false, error: check.reason };
   const plan = territory.planClaim(land.grid, land.ids, tribeId, direction, check.radius);
   if (!plan || plan.cells.length < territory.MIN_NEW_CELLS) return { ok: false, error: 'There is not enough free land that way. Choose another direction.' };
@@ -230,4 +250,4 @@ function summary(state) {
   };
 }
 
-module.exports = { loadTerritory, territoryView, claimPreview, claim, loadState, saveState, advance, cleanse, reset, summary, startTask, submitTask, loadTaskSettings, DEFAULTS, CLEANSE_COOLDOWN_MS, TASK_COOLDOWN_MS, MAX_SHIELD };
+module.exports = { loadTerritory, territoryView, claimPreview, proposeLand, claimNow, loadState, saveState, advance, cleanse, reset, summary, startTask, submitTask, loadTaskSettings, DEFAULTS, CLEANSE_COOLDOWN_MS, TASK_COOLDOWN_MS, MAX_SHIELD };

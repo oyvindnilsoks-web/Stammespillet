@@ -13,7 +13,7 @@ const { validFigure } = require('./figures');
 
 const FRESH_MS = 30 * 1000;
 const WORLD_FRESH_MS = 10 * 1000; // someone on the map who has not been heard from for ten seconds has gone
-const SESSION_MS = 30 * 60 * 1000;
+const SESSION_MS = 40 * 60 * 1000; // as long as the villagers can vote on a proposal
 
 // tribeId null: the student left the villages.
 async function beat(supabase, user, tribeId, now = new Date()) {

@@ -4,6 +4,7 @@ const { getSupabaseAdmin } = require('./_lib/supabaseAdmin');
 const { translateToEnglish } = require('./_lib/translate');
 const presence = require('./_lib/presence');
 const { residentVillageIds } = require('./_lib/residents');
+const proposals = require('./_lib/proposals');
 
 // The council of a village. Whoever lives there can see it: the student who
 // started the village, the students who joined it with the group code, and the
@@ -64,6 +65,31 @@ function noticesFor(councils, mine, names) {
   return list;
 }
 
+// What a proposal to change the council says, in short sentences, compared with the
+// council as it is now.
+function summaryOf(current, row, names, labelOf) {
+  const was = current || {};
+  const out = [];
+  const text = (key, label) => {
+    if ((row[key] || '') !== (was[key] || '')) out.push(row[key] ? `${label}: ${row[key]}` : `${label}: removed.`);
+  };
+  text('government', 'How the village is ruled');
+  text('god', 'The god or gods');
+  text('laws', 'The laws');
+  const diff = (key, added, removed) => {
+    const before = was[key] || [];
+    const nameList = (ids) => ids.map((id) => names.get(id) || id).join(', ');
+    const plus = (row[key] || []).filter((id) => !before.includes(id));
+    const minus = before.filter((id) => !(row[key] || []).includes(id));
+    if (plus.length) out.push(`${added} ${nameList(plus)}.`);
+    if (minus.length) out.push(`${removed} ${nameList(minus)}.`);
+  };
+  diff('allies', 'New allies:', 'No longer allies:');
+  diff('enemies', 'New enemies:', 'No longer enemies:');
+  if (row.leader_user && row.leader_user !== was.leader_user) out.push(`New council leader: ${labelOf(row.leader_user)}.`);
+  return out.length ? out : ['The council stays as it is.'];
+}
+
 const COLUMNS = 'tribe_id, government, god, laws, allies, enemies, source_lang, original, leader_user';
 
 const handler = withSessionRenewal(async (event) => {
@@ -97,6 +123,8 @@ const handler = withSessionRenewal(async (event) => {
       ]);
       if (error || allErr) throw new Error((error || allErr).message);
       const byId = new Map(rows.map((r) => [r.tribe_id, r]));
+      const proposalOf = new Map();
+      for (const id of mine) proposalOf.set(id, proposals.view(await proposals.current(supabase, id, peopleOf.get(id).users), peopleOf.get(id).users, user));
       const councils = mine.map((id) => {
         const row = byId.get(id) || {};
         const here = peopleOf.get(id);
@@ -113,6 +141,7 @@ const handler = withSessionRenewal(async (event) => {
           source_lang: 'en',
           original: null,
           ...rest,
+          proposal: proposalOf.get(id),
           people: here.users.map((u) => ({ pid: presence.pidOf(u), label: here.labels.get(u), mine: u === user })),
           leader: leaderUser ? { pid: presence.pidOf(leaderUser), label: here.labels.get(leaderUser), is_me: leaderUser === user } : null,
           can_edit: !leaderUser || leaderUser === user,
@@ -136,6 +165,16 @@ const handler = withSessionRenewal(async (event) => {
     }
     const tribeId = String(body.tribe_id || '');
     if (!mine.includes(tribeId)) return json(404, { error: 'You can only write the council of a village you live in.' });
+
+    // A villager votes on the proposal of the council leader.
+    if (body.action === 'vote') {
+      const state = await presence.stateFor(supabase, tribeId, user);
+      if (!state.resident || !state.me_here) return json(403, { error: 'You can only vote while you are in the village.' });
+      const residents = (await loadPeople([tribeId])).get(tribeId).users;
+      const result = await proposals.vote(supabase, user, tribeId, body.proposal_id, body.yes, residents);
+      if (!result.ok) return json(409, { error: result.error });
+      return json(200, { ok: true, proposal: proposals.view(result.proposal, residents, user) });
+    }
 
     // The council meets in the village: it can only be written while all the
     // villagers are there and one of them has started the council.
@@ -191,10 +230,11 @@ const handler = withSessionRenewal(async (event) => {
       Object.assign(row, texts);
     }
 
-    const { data: saved, error: saveErr } = await supabase.from('councils').upsert(row).select(COLUMNS).single();
-    if (saveErr) throw new Error(saveErr.message);
-    const { leader_user, ...rest } = saved;
-    return json(200, { ok: true, council: rest });
+    // Nothing is changed yet: the leader proposes it, and the villagers vote.
+    const summary = summaryOf(current, { ...row, leader_user: leaderUser }, names, (u) => here.labels.get(u) || 'a villager');
+    const made = await proposals.create(supabase, user, tribeId, 'council', { row, summary }, here.users);
+    if (!made.ok) return json(409, { error: made.error });
+    return json(200, { ok: true, proposed: true, proposal: proposals.view(made.proposal, here.users, user) });
   } catch (e) {
     console.error('Council failed:', e.message);
     return json(500, { error: 'Something went wrong. Try again.' });

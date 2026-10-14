@@ -740,3 +740,10 @@ main.wide { max-width: 1000px; }
 .villager-bio { margin: 0.5rem 0; padding: 0.4rem 0.7rem; background: var(--panel); border-radius: 8px; }
 .villager-bio summary { cursor: pointer; }
 .villager-bio p { line-height: 1.55; margin: 0.6rem 0 0; }
+
+/* Proposals in the village council */
+.proposal { margin: 0.6rem 0 1rem; padding: 0.6rem 0.8rem; background: var(--panel); border-left: 3px solid var(--accent); border-radius: 6px; }
+.proposal ul { margin: 0.4rem 0; padding-left: 1.2rem; }
+.proposal.result.passed { border-left-color: #7fb07f; }
+.proposal.result.rejected, .proposal.result.expired { border-left-color: var(--error); }
+.vote-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }

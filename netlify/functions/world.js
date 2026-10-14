@@ -53,7 +53,7 @@ exports.handler = withSessionRenewal(async (event) => {
         const mine = await residentVillageIds(supabase, user, new Set(approved.map((t) => t.id)));
         if (!mine.includes(tribeId)) return json(404, { error: 'You can only take land for a village you live in.' });
         if (body.action === 'claim-preview') return json(200, await world.claimPreview(supabase, user, tribeId));
-        const result = await world.claim(supabase, user, tribeId, String(body.direction || ''));
+        const result = await world.proposeLand(supabase, user, tribeId, String(body.direction || ''));
         return json(result.ok ? 200 : 409, result);
       }
       if (body.action !== 'cleanse') return json(400, { error: 'Unknown action' });

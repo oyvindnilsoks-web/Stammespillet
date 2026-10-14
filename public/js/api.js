@@ -315,6 +315,19 @@ export async function saveCouncil(payload) {
   return data;
 }
 
+// A villager votes yes or no on the proposal of the council leader.
+export async function voteOnProposal(tribeId, proposalId, yes) {
+  const res = await fetch('/api/council', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'vote', tribe_id: tribeId, proposal_id: proposalId, yes }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Could not vote.');
+  return data;
+}
+
 // Join a village a group member started, with its group code. Resolves to
 // { id, name } of the village.
 export async function joinVillage(code) {

@@ -1,4 +1,4 @@
-import { loadCouncils, saveCouncil, landPreview, landClaim } from './api.js';
+import { loadCouncils, saveCouncil, landPreview, landClaim, voteOnProposal } from './api.js';
 import { escapeHtml } from './translate.js';
 
 // The "Council" tab on the Contribute page: the students who live in a village
@@ -14,6 +14,21 @@ const TEXT = {
     landLede: (cells, radius) => `Your village has ${cells} squares of land. Once a day the council can take free land that borders yours, ${radius} squares wide. The poison in it comes with it. Choose a direction.`,
     landSquares: (n) => `+${n} squares`,
     landTaken: (n) => `✓ Your village took ${n} squares of land.`,
+    landProposed: '✓ The proposal has been sent. The villagers vote now.',
+    proposalTitle: 'The council votes',
+    proposalSent: '✓ Sent to the villagers. They vote now.',
+    voteIntro: (need, total) => `It passes when ${need} of ${total} villagers say yes.`,
+    yes: 'Yes',
+    no: 'No',
+    counts: (yes, no, need) => `Yes: ${yes} · No: ${no} · ${need} yes needed`,
+    timeLeft: (min) => (min > 0 ? `${min} min left` : 'Less than a minute left'),
+    myYes: 'You voted yes.',
+    myNo: 'You voted no.',
+    passed: 'The proposal passed.',
+    rejected: 'The proposal was voted down.',
+    expired: 'The time ran out, so nothing changed.',
+    voteFailed: 'Could not vote. Are you in the village?',
+    saveProposal: 'Propose to the villagers',
     landNext: (when) => `You can take land again ${when}.`,
     landFailed: 'Could not take the land.',
     intro: 'You decide this together with everyone who lives in your village. Choose one council leader: only the leader can save, so you do not overwrite each other. Allies are friends. Enemies cannot visit your village, and you cannot visit them.',
@@ -47,6 +62,21 @@ const TEXT = {
     landLede: (cells, radius) => `Landsbyen har ${cells} ruter land. Én gang om dagen kan rådet ta fritt land som grenser til deres, ${radius} ruter bredt. Giften i landet følger med. Velg en retning.`,
     landSquares: (n) => `+${n} ruter`,
     landTaken: (n) => `✓ Landsbyen tok ${n} ruter land.`,
+    landProposed: '✓ Forslaget er sendt. Innbyggerne stemmer nå.',
+    proposalTitle: 'Rådet stemmer',
+    proposalSent: '✓ Sendt til innbyggerne. De stemmer nå.',
+    voteIntro: (need, total) => `Det vedtas når ${need} av ${total} innbyggere sier ja.`,
+    yes: 'Ja',
+    no: 'Nei',
+    counts: (yes, no, need) => `Ja: ${yes} · Nei: ${no} · ${need} ja trengs`,
+    timeLeft: (min) => (min > 0 ? `${min} min igjen` : 'Under ett minutt igjen'),
+    myYes: 'Du stemte ja.',
+    myNo: 'Du stemte nei.',
+    passed: 'Forslaget ble vedtatt.',
+    rejected: 'Forslaget ble nedstemt.',
+    expired: 'Tiden gikk ut, så ingenting ble endret.',
+    voteFailed: 'Kunne ikke stemme. Er du i landsbyen?',
+    saveProposal: 'Foreslå for innbyggerne',
     landNext: (when) => `Dere kan ta land igjen ${when}.`,
     landFailed: 'Kunne ikke ta landet.',
     intro: 'Dette bestemmer dere sammen med alle som bor i landsbyen. Velg én rådsleder: bare lederen kan lagre, så dere ikke skriver over hverandre. Allierte er venner. Fiender kan ikke besøke landsbyen deres, og dere kan ikke besøke dem.',
@@ -114,7 +144,7 @@ function card(council, villages, lang, t, translation, live) {
   if (!live || !council.can_edit) {
     const note = live && council.leader ? t.onlyLeader(h(council.leader.label)) : t.meetInVillage;
     return `<section class="charter-section council" data-council="${h(council.tribe_id)}">${head}
-      <p class="charter-lede">${note}</p>${readOnly(council, villages, t)}</section>`;
+      ${live ? `<div class="council-proposal" data-proposal="${h(council.tribe_id)}"></div>` : ''}<p class="charter-lede">${note}</p>${readOnly(council, villages, t)}</section>`;
   }
 
   const chosenLeader = council.leader ? council.leader.pid : (council.people.find((p) => p.mine) || {}).pid;
@@ -122,15 +152,30 @@ function card(council, villages, lang, t, translation, live) {
     .map((p) => `<option value="${h(p.pid)}" ${p.pid === chosenLeader ? 'selected' : ''}>${h(p.label)}${p.mine ? t.you : ''}</option>`)
     .join('')}</select>`;
   return `<section class="charter-section council" data-council="${h(council.tribe_id)}">${head}
+    <div class="council-proposal" data-proposal="${h(council.tribe_id)}"></div>
     <label class="charter-field"><span class="field-label">${t.leader}</span><span class="muted"> ${t.leaderHelp}</span>${leaderOptions}</label>
     <label class="charter-field"><span class="field-label">${t.government}</span><input type="text" name="government" maxlength="300" value="${h(value('government'))}" placeholder="${h(t.governmentHelp)}"></label>
     <label class="charter-field"><span class="field-label">${t.god}</span><input type="text" name="god" maxlength="300" value="${h(value('god'))}"></label>
     <label class="charter-field"><span class="field-label">${t.laws}</span><textarea name="laws" rows="4" maxlength="800">${h(value('laws'))}</textarea></label>
     <div class="charter-field"><span class="field-label">${t.allies}</span><div class="council-checks">${noOthers ? `<p class="muted">${t.noOthers}</p>` : checks('allies', villages, council.tribe_id, council.allies)}</div></div>
     <div class="charter-field"><span class="field-label">${t.enemies}</span><div class="council-checks">${noOthers ? '' : checks('enemies', villages, council.tribe_id, council.enemies)}</div></div>
-    <div class="council-actions"><button type="button" class="choice-btn" data-save>${t.save}</button> <span class="muted" data-status role="status"></span></div>
+    <div class="council-actions"><button type="button" class="choice-btn" data-save>${live ? t.saveProposal : t.save}</button> <span class="muted" data-status role="status"></span></div>
     <div class="charter-field council-land" data-land="${h(council.tribe_id)}"></div>
   </section>`;
+}
+
+// A proposal from the council leader: what it says, the votes so far, and the buttons.
+function proposalHtml(p, t) {
+  if (!p) return '';
+  const items = p.summary.map((s) => `<li>${h(s)}</li>`).join('');
+  if (p.status !== 'open') {
+    return `<div class="proposal result ${h(p.status)}"><strong>${t[p.status] || ''}</strong>${p.note ? ` <span class="muted">${h(p.note)}</span>` : ''}<ul>${items}</ul></div>`;
+  }
+  const minutes = Math.max(0, Math.ceil((new Date(p.closes_at) - Date.now()) / 60000));
+  const mine = p.my_vote === true ? t.myYes : p.my_vote === false ? t.myNo : '';
+  return `<div class="proposal"><strong>${t.proposalTitle}</strong><ul>${items}</ul>
+    <p class="muted">${t.voteIntro(p.need, p.total)} ${t.counts(p.yes, p.no, p.need)} · ${t.timeLeft(minutes)}</p>
+    <div class="vote-row"><button type="button" class="choice-btn" data-vote="yes" data-pid="${p.id}">${t.yes}</button> <button type="button" class="small-btn" data-vote="no" data-pid="${p.id}">${t.no}</button> <span class="muted" data-vote-status role="status">${mine}</span></div></div>`;
 }
 
 export async function renderCouncil(host, options) {
@@ -154,6 +199,61 @@ export async function renderCouncil(host, options) {
     ? `<section class="council-news"><h3>${t.messages}</h3><ul>${data.notices.map((n) => `<li>${(n.kind === 'enemy' ? t.enemy : t.ally)(h(n.from_name), h(n.to_name))}</li>`).join('')}</ul></section>`
     : '';
   host.innerHTML = `${notices}<p class="charter-lede">${t.intro}</p>${data.councils.map((c) => card(c, data.villages, lang, t, data.translation, live)).join('')}`;
+
+  // The proposal of the leader, shown to everybody while the council meets. The votes are
+  // fetched again every few seconds without redrawing the form (the leader may be typing).
+  const drawProposals = () =>
+    host.querySelectorAll('[data-proposal]').forEach((box) => {
+      const council = data.councils.find((c) => c.tribe_id === box.dataset.proposal);
+      box.innerHTML = proposalHtml(council && council.proposal, t);
+    });
+  drawProposals();
+  if (live) {
+    clearInterval(host._proposalTimer);
+    const seen = new Map(data.councils.map((c) => [c.tribe_id, c.proposal ? c.proposal.status : null]));
+    host._proposalTimer = setInterval(async () => {
+      if (!host.isConnected) return clearInterval(host._proposalTimer);
+      try {
+        const fresh = await loadCouncils();
+        data.councils.forEach((c) => {
+          const f = fresh.councils.find((x) => x.tribe_id === c.tribe_id);
+          if (!f) return;
+          c.proposal = f.proposal;
+          // Land that was voted through is on the map now.
+          if (f.proposal && f.proposal.kind === 'land' && f.proposal.status === 'passed' && seen.get(c.tribe_id) === 'open') window.dispatchEvent(new Event('land-changed'));
+          seen.set(c.tribe_id, f.proposal ? f.proposal.status : null);
+        });
+        drawProposals();
+      } catch {
+        // The next try will do.
+      }
+    }, 4000);
+  }
+  host._data = data;
+  host._t = t;
+  if (!host._voteBound) {
+    host._voteBound = true;
+    host.addEventListener('click', async (e) => {
+      const button = e.target.closest('[data-vote]');
+      if (!button) return;
+      const box = button.closest('[data-proposal]');
+      const current = host._data;
+      const council = box && current.councils.find((c) => c.tribe_id === box.dataset.proposal);
+      if (!council) return;
+      box.querySelectorAll('button').forEach((b) => (b.disabled = true));
+      try {
+        const r = await voteOnProposal(council.tribe_id, Number(button.dataset.pid), button.dataset.vote === 'yes');
+        council.proposal = r.proposal;
+        if (r.proposal.kind === 'land' && r.proposal.status === 'passed') window.dispatchEvent(new Event('land-changed'));
+      } catch (err) {
+        const status = box.querySelector('[data-vote-status]');
+        if (status) status.textContent = err.message || host._t.voteFailed;
+        box.querySelectorAll('button').forEach((b) => (b.disabled = false));
+        return;
+      }
+      box.innerHTML = proposalHtml(council.proposal, host._t);
+    });
+  }
 
   // While the council meets, those who cannot write it see the leader's changes.
   if (live && !data.councils.some((c) => c.can_edit)) {
@@ -200,7 +300,7 @@ export async function renderCouncil(host, options) {
       try {
         const r = await landClaim(id, b.dataset.dir);
         window.dispatchEvent(new Event('land-changed'));
-        await draw(t.landTaken(r.taken));
+        await draw(t.landProposed);
       } catch (err) {
         await draw(err.message || t.landFailed);
       }
@@ -227,7 +327,9 @@ export async function renderCouncil(host, options) {
           allies: ticked('allies'),
           enemies: ticked('enemies'),
         });
-        status.textContent = t.saved;
+        status.textContent = live ? t.proposalSent : t.saved;
+        data = await loadCouncils().then((d) => (tribeId ? { ...d, councils: d.councils.filter((c) => c.tribe_id === tribeId) } : d)).catch(() => data);
+        drawProposals();
         // Handing over the leadership: show the council as the new leader's.
         const before = data.councils.find((c) => c.tribe_id === section.dataset.council);
         const chosen = section.querySelector('[name="leader"]')?.value;
