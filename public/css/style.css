@@ -545,7 +545,8 @@ main.wide { max-width: 1000px; }
 .play-wrap {
   position: relative;
   width: 100%;
-  max-width: 960px;
+  /* As big as the window allows, but never taller than the window. */
+  max-width: min(1500px, calc((100vh - 8rem) * 1.6));
   margin: 0 auto;
   aspect-ratio: 16 / 10;
   background: #1b1712;
@@ -554,6 +555,9 @@ main.wide { max-width: 1000px; }
   overflow: hidden;
 }
 #play-canvas { position: absolute; inset: 0; }
+.play-fs { position: absolute; right: 0.5rem; bottom: 0.5rem; z-index: 5; width: 2.2rem; height: 2.2rem; font-size: 1.2rem; line-height: 1; border: 1px solid var(--accent); border-radius: 8px; background: rgba(27, 23, 18, 0.85); color: var(--text); cursor: pointer; }
+.play-fs:hover { background: var(--accent); color: var(--bg); }
+.play-wrap:fullscreen { max-width: none; width: 100vw; height: 100vh; aspect-ratio: auto; border: 0; border-radius: 0; }
 #play-canvas canvas { display: block; }
 .play-loading { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; }
 .play-help { font-size: 0.85rem; margin: 0 auto; max-width: 960px; }

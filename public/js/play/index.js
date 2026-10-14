@@ -125,9 +125,30 @@ export function startPlay(container, content, { state, save }) {
 
   container.innerHTML = `
     <div class="play">
-      <div class="play-wrap" id="play-wrap"><div id="play-canvas"><p class="muted play-loading">Loading the world…</p></div></div>
+      <div class="play-wrap" id="play-wrap"><div id="play-canvas"><p class="muted play-loading">Loading the world…</p></div><button type="button" class="play-fs" id="play-fs" title="Fullscreen (F)" aria-label="Fullscreen" hidden>⛶</button></div>
       <p class="muted play-help">Walk with the arrow keys or WASD, or tap where you want to go. You can swim across the sea and climb the mountains, but slowly. Walk onto a village to go inside. Press E to talk to a villager or read a sign. Walk down and out of a village to go back to the map.</p>
     </div>`;
+
+  // Fullscreen for the game (the whole play area, with the windows on top of it): the
+  // button in the corner, or the F key. Not offered where the browser has no fullscreen.
+  const playWrap = container.querySelector('#play-wrap');
+  const fsButton = container.querySelector('#play-fs');
+  const canFullscreen = Boolean(playWrap.requestFullscreen);
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) document.exitFullscreen?.();
+    else playWrap.requestFullscreen().catch(() => {});
+  };
+  const onFullscreenKey = (e) => {
+    if ((e.key !== 'f' && e.key !== 'F') || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '')) return;
+    if (container.querySelector('#play-overlay') && !container.querySelector('#play-overlay').hidden) return;
+    toggleFullscreen();
+  };
+  if (canFullscreen) {
+    fsButton.hidden = false;
+    fsButton.addEventListener('click', toggleFullscreen);
+    document.addEventListener('keydown', onFullscreenKey);
+  }
 
   Promise.all([loadPhaser(), ensureFigures()])
     .then(([Phaser]) => {
@@ -407,6 +428,8 @@ export function startPlay(container, content, { state, save }) {
   return {
     stop() {
       stopped = true;
+      document.removeEventListener('keydown', onFullscreenKey);
+      if (document.fullscreenElement) document.exitFullscreen?.();
       main?.classList.remove('wide');
       progress?.flush();
       ui?.destroy();
