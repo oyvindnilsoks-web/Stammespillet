@@ -759,3 +759,59 @@ main.wide { max-width: 1000px; }
 .claim.result.kept { border-left-color: var(--error); }
 .land-dir { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; }
 .small-btn.contest { border-color: var(--error); }
+
+/* The help button (?) and its window: student guide, teacher guide, about the project */
+.help-fab {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 60;
+  width: 3rem;
+  height: 3rem;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--accent);
+  font: bold 1.5rem Georgia, serif;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  animation: help-bob 3.2s ease-in-out infinite;
+}
+.help-fab:hover, .help-fab:focus-visible { background: var(--accent); color: var(--bg); animation-play-state: paused; transform: scale(1.1) rotate(-8deg); }
+.help-fab-mark { position: relative; }
+.help-fab-ring { position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--accent); opacity: 0; animation: help-ring 3.2s ease-out infinite; }
+@keyframes help-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes help-ring { 0%, 55% { transform: scale(1); opacity: 0; } 60% { opacity: 0.8; } 100% { transform: scale(1.9); opacity: 0; } }
+
+.help-modal { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 1rem; background: rgba(10, 8, 5, 0.75); opacity: 0; transition: opacity 0.18s ease; }
+.help-modal.open { opacity: 1; }
+.help-panel { width: min(34rem, 100%); max-height: 90vh; overflow: auto; padding: 1.1rem 1.3rem 1.4rem; background: var(--panel); border: 1px solid var(--accent); border-radius: 12px; transform: translateY(14px) scale(0.96); transition: transform 0.22s cubic-bezier(0.2, 1.3, 0.4, 1); }
+.help-panel.wide { width: min(50rem, 100%); }
+.help-modal.open .help-panel { transform: none; }
+.help-head { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; margin-bottom: 0.6rem; }
+.help-head h2 { margin: 0; flex: 1; }
+.help-cards { display: grid; gap: 0.7rem; margin-top: 0.8rem; }
+.help-card { display: grid; grid-template-columns: 2.6rem 1fr; gap: 0.8rem; align-items: center; text-align: left; padding: 0.8rem 1rem; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--muted); border-radius: 10px; cursor: pointer; opacity: 0; transform: translateY(12px); animation: help-card-in 0.35s ease forwards; animation-delay: calc(0.08s + var(--i) * 0.09s); }
+.help-card:hover, .help-card:focus-visible { border-color: var(--accent); transform: translateX(4px); }
+.help-card-icon { font-size: 1.9rem; text-align: center; }
+@keyframes help-card-in { to { opacity: 1; transform: none; } }
+.help-body { line-height: 1.55; }
+.help-body h3 { margin: 1.4rem 0 0.4rem; color: var(--accent); }
+.help-body h4 { margin: 0 0 0.2rem; }
+.help-lede { font-size: 1.05rem; }
+.help-steps { padding-left: 1.3rem; display: grid; gap: 0.9rem; }
+.help-steps p, .help-list li { margin: 0.2rem 0; }
+.help-list { padding-left: 1.2rem; display: grid; gap: 0.5rem; }
+.help-body .k { background: var(--accent); color: var(--bg); border-radius: 4px; padding: 0.05em 0.45em; font-size: 0.9em; white-space: nowrap; }
+.help-body .tag { margin-left: 0.4rem; padding: 0.1rem 0.5rem; border: 1px solid var(--accent); border-radius: 999px; font-size: 0.7rem; font-weight: normal; color: var(--accent); }
+.help-table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; }
+.help-table th, .help-table td { text-align: left; vertical-align: top; padding: 0.5rem 0.6rem 0.5rem 0; border-bottom: 1px solid var(--muted); }
+@media (max-width: 560px) { .help-table, .help-table tbody, .help-table tr, .help-table td { display: block; width: 100%; } .help-table thead { display: none; } .help-table td:first-child { font-weight: bold; padding-bottom: 0; border: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .help-fab, .help-fab-ring { animation: none; }
+  .help-card { animation: none; opacity: 1; transform: none; }
+  .help-panel, .help-modal { transition: none; }
+}

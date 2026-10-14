@@ -5,6 +5,7 @@ import { renderGallery } from './gallery.js';
 import { renderContribute } from './contribute.js';
 import { startPlay } from './play/index.js';
 import { enableTranslation, escapeHtml } from './translate.js';
+import { mountHelp } from './help.js';
 
 const app = document.getElementById('app');
 const nav = document.getElementById('nav');
@@ -12,6 +13,7 @@ const nav = document.getElementById('nav');
 // Click-to-translate is delegated on the persistent #app container, so this
 // only needs to run once - it keeps working across every view re-render.
 enableTranslation(app);
+mountHelp();
 
 let content = null; // { tribes, characters, scenes, media }
 let state = null; // { chosen_character, current_scene, flags, visited_tribes }
