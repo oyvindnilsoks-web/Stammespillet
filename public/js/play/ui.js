@@ -167,7 +167,8 @@ export function createUi(wrap) {
 
     // The tasks that clean the poison. quiz is { questions, token }; submit(answers)
     // resolves to what the server said. closed runs when the window is closed.
-    openTask(quiz, submit, closed) {
+    // opts: { title, intro, result(r) } for tasks that are not for cleaning poison.
+    openTask(quiz, submit, closed, opts = {}) {
       const rows = quiz.questions
         .map(
           (q, i) => `<label class="task-row"><span class="muted">${q.kind === 'math' ? 'Maths' : 'Glossary'} ${i + 1}</span>
@@ -176,7 +177,7 @@ export function createUi(wrap) {
         )
         .join('');
       show(
-        `<div class="play-window-head"><div><h2>Clean the poison</h2><p class="muted">Answer the questions. 4 or 5 right cleans the poison around you and protects your villages.</p></div><button class="small-btn" data-close>Close</button></div>
+        `<div class="play-window-head"><div><h2>${escapeHtml(opts.title || 'Clean the poison')}</h2><p class="muted">${escapeHtml(opts.intro || 'Answer the questions. 4 or 5 right cleans the poison around you and protects your villages.')}</p></div><button class="small-btn" data-close>Close</button></div>
          <div class="play-tasks">${rows}</div>
          <p class="task-result" id="task-result" role="status"></p>
          <div class="play-actions"><button class="choice-btn" id="task-check">Check my answers</button></div>`,
@@ -200,6 +201,7 @@ export function createUi(wrap) {
         try {
           const r = await submit(inputs.map((x) => x.value));
           if (r.error) out.textContent = r.error;
+          else if (opts.result) out.textContent = opts.result(r);
           else if (r.cooling) out.textContent = `${r.correct} of ${r.total} right. Wait half a minute before the next reward.`;
           else if (r.cleaned) out.textContent = `${r.correct} of ${r.total} right! The poison around you shrank${r.shield ? ` and your villages are protected for ${r.shield} more steps` : ''}.`;
           else out.textContent = `${r.correct} of ${r.total} right. You need at least ${r.total - 1} to clean the poison. Try new questions.`;

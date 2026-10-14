@@ -1,6 +1,6 @@
 import { escapeHtml } from '../translate.js';
 import { createUi } from './ui.js';
-import { loadWorld, cleanseWorld, presenceBeat, presenceState, startCouncilSession, startTask, submitTask, battleList, battleDo, presenceWorld, presenceVillage, artifactList, chatGet, chatSay } from '../api.js';
+import { loadWorld, cleanseWorld, presenceBeat, presenceState, startCouncilSession, startTask, submitTask, battleList, battleDo, presenceWorld, presenceVillage, artifactList, loadCouncils, startCultureBattle, submitCultureBattle, chatGet, chatSay } from '../api.js';
 import { renderCouncil } from '../council.js';
 import { ensureFigures, figureSheetUrl } from './figures.js';
 import { mappedVillages, villagersOf, ownVillagers, playerLook, allQuests, noticesFor } from './data.js';
@@ -108,6 +108,12 @@ export function startPlay(container, content, { state, save }) {
   let game = null;
   let ui = null;
   let progress = null;
+  let claimTimer = null;
+  const windowListeners = []; // [event name, function]: taken away again when the game stops
+  const listen = (name, fn) => {
+    window.addEventListener(name, fn);
+    windowListeners.push([name, fn]);
+  };
 
   const villages = mappedVillages(content);
   if (!villages.length) {
@@ -162,7 +168,7 @@ export function startPlay(container, content, { state, save }) {
       // The poison of the evil villages: fetched when the world is shown and now and then.
       ctx.world = null;
       // The council leader took land: show the new borders at once.
-      window.addEventListener('land-changed', () => ctx.reloadWorld?.());
+      listen('land-changed', () => ctx.reloadWorld?.());
       ctx.reloadWorld = async () => {
         try {
           ctx.world = await loadWorld();
@@ -291,6 +297,56 @@ export function startPlay(container, content, { state, save }) {
           }
         );
       };
+
+      // The culture battle between two villages over land: the same kind of tasks, kept as
+      // a score for the student's village.
+      listen('culture-battle', async (e) => {
+        const claimId = e.detail && e.detail.claimId;
+        if (!claimId) return;
+        ui.close();
+        let quiz;
+        try {
+          quiz = await startCultureBattle(claimId);
+        } catch (err) {
+          ui.openNote('Culture battle', 'Not now', err.message || 'Could not start.');
+          return;
+        }
+        if (!quiz.ok) {
+          ui.openNote('Culture battle', 'Not now', quiz.error || 'Could not start.');
+          return;
+        }
+        ui.openTask(quiz, (answers) => submitCultureBattle(claimId, quiz.token, answers), null, {
+          title: 'Culture battle',
+          intro: 'Answer the questions. You can only do this once, and your score counts for your village.',
+          result: (r) => (r.ok ? `${r.correct} of ${r.total} right. Your score is kept for your village.` : r.error || 'Something went wrong.'),
+        });
+      });
+
+      // News about land claims, told once: somebody asks for the land of the village, the
+      // culture battle begins, and how it ended. Looked for every minute.
+      const claimNews = async () => {
+        if (stopped || ui.isOpen()) return;
+        try {
+          const d = await loadCouncils();
+          for (const c of d.land_claims || []) {
+            const key = `land:${c.id}:${c.status}`;
+            if (progress.noticeSeen(key) || !c.my_side) continue;
+            let text = '';
+            if (c.status === 'awaiting' && c.my_side === 'target') text = `${c.claimant_name} asks for ${c.squares} squares of the land of ${c.target_name}. The council leader can answer in the council.`;
+            else if (c.status === 'battle') text = `Culture battle: ${c.claimant_name} against ${c.target_name} for ${c.squares} squares of land. Open the village council and take part.`;
+            else if (c.status === 'transferred') text = `${c.claimant_name} got ${c.squares} squares of land from ${c.target_name}.`;
+            else if (c.status === 'kept') text = `${c.target_name} kept its land. ${c.claimant_name} got nothing.`;
+            if (!text) continue;
+            progress.markNotices([key]);
+            ui.openNote('Land', 'News about land', text);
+            return;
+          }
+        } catch {
+          // The news is only an extra.
+        }
+      };
+      claimTimer = setInterval(claimNews, 60000);
+      setTimeout(claimNews, 4000);
 
       // The tasks that clean the poison where the figure stands.
       ctx.openTask = async (fx, fy) => {
@@ -428,6 +484,8 @@ export function startPlay(container, content, { state, save }) {
   return {
     stop() {
       stopped = true;
+      clearInterval(claimTimer);
+      for (const [name, fn] of windowListeners) window.removeEventListener(name, fn);
       document.removeEventListener('keydown', onFullscreenKey);
       if (document.fullscreenElement) document.exitFullscreen?.();
       main?.classList.remove('wide');

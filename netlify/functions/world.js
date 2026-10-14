@@ -3,6 +3,7 @@ const { verifySessionToken, SESSION_COOKIE, withSessionRenewal } = require('./_l
 const { getSupabaseAdmin } = require('./_lib/supabaseAdmin');
 const world = require('./_lib/world');
 const { residentVillageIds } = require('./_lib/residents');
+const landclaims = require('./_lib/landclaims');
 
 // The shared world for the game: where the poison is (to draw on the map), and
 // cleaning around a village when a student solves a problem. It needs a login.
@@ -29,6 +30,7 @@ exports.handler = withSessionRenewal(async (event) => {
     const supabase = getSupabaseAdmin();
     if (event.httpMethod === 'GET') {
       const state = await world.loadState(supabase);
+      await landclaims.settleAll(supabase);
       const land = await world.loadTerritory(supabase, state);
       return json(200, { poison: state.poison, territory: world.territoryView(land), ...world.summary(state) });
     }
@@ -53,8 +55,14 @@ exports.handler = withSessionRenewal(async (event) => {
         const mine = await residentVillageIds(supabase, user, new Set(approved.map((t) => t.id)));
         if (!mine.includes(tribeId)) return json(404, { error: 'You can only take land for a village you live in.' });
         if (body.action === 'claim-preview') return json(200, await world.claimPreview(supabase, user, tribeId));
-        const result = await world.proposeLand(supabase, user, tribeId, String(body.direction || ''));
+        const result = await world.proposeLand(supabase, user, tribeId, String(body.direction || ''), body.mode === 'contest' ? 'contest' : 'free');
         return json(result.ok ? 200 : 409, result);
+      }
+      // Land another village has taken: its leader answers, and the culture battle.
+      if (['claim-respond', 'battle-start', 'battle-submit'].includes(body.action)) {
+        if (body.action === 'claim-respond') return json(200, await landclaims.respond(supabase, user, body.claim_id, Boolean(body.accept)));
+        if (body.action === 'battle-start') return json(200, await landclaims.startBattle(supabase, user, body.claim_id));
+        return json(200, await landclaims.submitBattle(supabase, user, body.claim_id, body.token, body.answers));
       }
       if (body.action !== 'cleanse') return json(400, { error: 'Unknown action' });
       const result = await world.cleanse(supabase, String(body.tribe_id || ''));

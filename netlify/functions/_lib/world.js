@@ -195,38 +195,74 @@ async function claimCheck(supabase, user, tribeId, land, state, now, { voted = f
   return { village, radius: territory.radiusFor((state.shields || {})[tribeId] || 0) };
 }
 
-// The buttons for the council leader: how much land each direction would give.
+// The buttons for the council leader: how much free land each direction would give, and
+// where it would take land that another village has taken (the village, and how much).
 async function claimPreview(supabase, user, tribeId, now = new Date()) {
   const state = await loadState(supabase);
   const land = await loadTerritory(supabase, state);
   const check = await claimCheck(supabase, user, tribeId, land, state, now);
   const cells = (land.grid.filter((v) => v === land.ids.indexOf(tribeId) + 1)).length;
   if (!check.village) return { ok: true, can: false, reason: check.reason, next_at: check.next_at || null, cells };
-  return { ok: true, can: true, radius: check.radius, cells, options: territory.previews(land.grid, land.ids, tribeId, check.radius) };
+  const names = new Map(land.villages.map((v) => [v.id, v.name]));
+  const options = territory.previews(land.grid, land.ids, tribeId, check.radius).map((o) => {
+    const contest = territory.contestedPlan(land.owners, land.grid, land.ids, tribeId, o.dir, check.radius);
+    return { ...o, contest: contest ? { target_id: contest.target, target_name: names.get(contest.target) || 'another village', cells: contest.cells.length } : null };
+  });
+  return { ok: true, can: true, radius: check.radius, cells, options };
 }
 
-// The council leader proposes to take land in one direction. The villagers vote on it
-// (see proposals.js); the land is taken when it has passed.
-async function proposeLand(supabase, user, tribeId, direction, now = new Date()) {
+// The council leader proposes to take land in one direction: free land, or (mode 'contest')
+// land that another village has taken. The villagers vote on it (see proposals.js); when it
+// has passed, free land is taken at once, and the other village is asked about the rest.
+async function proposeLand(supabase, user, tribeId, direction, mode = 'free', now = new Date()) {
   const state = await loadState(supabase);
   const land = await loadTerritory(supabase, state);
   const check = await claimCheck(supabase, user, tribeId, land, state, now);
   if (!check.village) return { ok: false, error: check.reason };
-  const plan = territory.planClaim(land.grid, land.ids, tribeId, direction, check.radius);
-  if (!plan || plan.cells.length < territory.MIN_NEW_CELLS) return { ok: false, error: 'There is not enough free land that way. Choose another direction.' };
-  const label = (territory.DIRECTIONS.find((d) => d.id === direction) || {}).label || direction;
+  const label = ((territory.DIRECTIONS.find((d) => d.id === direction) || {}).label || direction).toLowerCase();
+  const payload = { direction, mode: 'free', summary: [] };
+  if (mode === 'contest') {
+    const contest = territory.contestedPlan(land.owners, land.grid, land.ids, tribeId, direction, check.radius);
+    if (!contest) return { ok: false, error: 'No other village has taken enough land that way. Choose another direction.' };
+    const targetName = (land.villages.find((v) => v.id === contest.target) || {}).name || 'the other village';
+    payload.mode = 'contest';
+    payload.target_id = contest.target;
+    payload.summary = [`Ask ${targetName} for ${contest.cells.length} squares of their land to the ${label}. If they say no, the two villages meet in a culture battle.`];
+  } else {
+    const plan = territory.planClaim(land.grid, land.ids, tribeId, direction, check.radius);
+    if (!plan || plan.cells.length < territory.MIN_NEW_CELLS) return { ok: false, error: 'There is not enough free land that way. Choose another direction.' };
+    payload.summary = [`Take ${plan.cells.length} squares of free land to the ${label}.`];
+  }
   const residents = await proposals.residentsOf(supabase, tribeId);
-  const made = await proposals.create(supabase, user, tribeId, 'land', { direction, summary: [`Take ${plan.cells.length} squares of land to the ${label.toLowerCase()}.`] }, residents, now);
+  const made = await proposals.create(supabase, user, tribeId, 'land', payload, residents, now);
   if (!made.ok) return made;
   return { ok: true, proposed: true, proposal: proposals.view(made.proposal, residents, user) };
 }
 
-// Takes land in one direction, now. voted: the villagers have said yes.
-async function claimNow(supabase, user, tribeId, direction, now = new Date()) {
+// Takes land in one direction, now, after the villagers have said yes. Free land is taken;
+// for land that another village has taken, that village is asked (see landclaims.js).
+async function claimNow(supabase, user, tribeId, direction, now = new Date(), mode = 'free') {
   const state = await loadState(supabase);
   const land = await loadTerritory(supabase, state);
   const check = await claimCheck(supabase, user, tribeId, land, state, now, { voted: true });
   if (!check.village) return { ok: false, error: check.reason };
+
+  if (mode === 'contest') {
+    const contest = territory.contestedPlan(land.owners, land.grid, land.ids, tribeId, direction, check.radius);
+    if (!contest) return { ok: false, error: 'The land is not there any more.' };
+    const claimInsert = await supabase.from('land_claims').insert({
+      claimant: tribeId,
+      target: contest.target,
+      cells: contest.cells,
+      proposed_by: user,
+      respond_by: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+    });
+    if (claimInsert.error) throw new Error(claimInsert.error.message);
+    const logged = await supabase.from('territory_claims').insert({ tribe_id: tribeId, user_id: user, cx: contest.cx, cy: contest.cy, radius: contest.radius, cells: 0 });
+    if (logged.error) throw new Error(logged.error.message);
+    return { ok: true, asked: contest.target };
+  }
+
   const plan = territory.planClaim(land.grid, land.ids, tribeId, direction, check.radius);
   if (!plan || plan.cells.length < territory.MIN_NEW_CELLS) return { ok: false, error: 'There is not enough free land that way. Choose another direction.' };
   const owners = territory.applyClaim(land.owners, land.ids, tribeId, plan);

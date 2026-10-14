@@ -161,12 +161,12 @@ export async function landPreview(tribeId) {
   return res.json();
 }
 
-export async function landClaim(tribeId, direction) {
+export async function landClaim(tribeId, direction, mode = 'free') {
   const res = await fetch('/api/world', {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'claim', tribe_id: tribeId, direction }),
+    body: JSON.stringify({ action: 'claim', tribe_id: tribeId, direction, mode }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Could not take the land.');
@@ -313,6 +313,30 @@ export async function saveCouncil(payload) {
     throw err;
   }
   return data;
+}
+
+// Land another village has taken: the leader of that village answers (give the land, or
+// meet in the culture battle), and the tasks of the culture battle.
+async function worldPost(body, fallback) {
+  const res = await fetch('/api/world', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || fallback);
+  return data;
+}
+export const respondToClaim = (claimId, accept) => worldPost({ action: 'claim-respond', claim_id: claimId, accept }, 'Could not answer.');
+export const startCultureBattle = (claimId) => worldPost({ action: 'battle-start', claim_id: claimId }, 'Could not start.');
+export const submitCultureBattle = (claimId, token, answers) => worldPost({ action: 'battle-submit', claim_id: claimId, token, answers }, 'Could not hand in.');
+
+// The Clan Lexicon texts in Norwegian: [{ id, title, body }].
+export async function loadLexiconNorwegian() {
+  const res = await fetch('/api/lexicon?lang=no', { credentials: 'same-origin' });
+  if (!res.ok) throw new Error('Could not translate.');
+  return res.json();
 }
 
 // A villager votes yes or no on the proposal of the council leader.

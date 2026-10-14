@@ -78,6 +78,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/lexicon"
+  to = "/.netlify/functions/lexicon"
+  status = 200
+
+[[redirects]]
   from = "/api/artifact"
   to = "/.netlify/functions/artifact"
   status = 200

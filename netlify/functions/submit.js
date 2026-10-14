@@ -101,6 +101,16 @@ function newJoinCode() {
   return code;
 }
 
+// One village for each student: the one they started or the one they joined with a code. A
+// village the teacher turned down does not count. exceptId: a village that is allowed.
+async function hasVillage(supabase, user, exceptId = null) {
+  const mine = await myVillages(supabase, user);
+  if (mine.error) throw new Error(mine.error.message);
+  return mine.data.some((v) => v.id !== exceptId && ['pending', 'approved'].includes(v.status));
+}
+
+const ONE_VILLAGE = 'You already have a village. Everybody is in one village only: the one you started, or the one you joined.';
+
 async function handleJoin(supabase, user, rawCode) {
   const code = String(rawCode || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   const notFound = async () => {
@@ -114,6 +124,7 @@ async function handleJoin(supabase, user, rawCode) {
   if (error) return json(500, { error: error.message });
   if (!tribe) return notFound();
   if (tribe.status !== 'pending') return json(409, { error: 'This village has already been reviewed by your teacher.' });
+  if (await hasVillage(supabase, user, tribe.id)) return json(409, { error: ONE_VILLAGE });
 
   if (tribe.submitted_by !== user) {
     const { error: memberErr } = await supabase
@@ -146,7 +157,7 @@ async function villageForPictures(supabase, user, id) {
   const { data: tribe, error } = await supabase.from('tribes').select('id, status, submitted_by').eq('id', String(id || '')).maybeSingle();
   if (error) return { response: json(500, { error: error.message }) };
   if (!tribe || !(await mayEditVillage(supabase, tribe, user))) return { response: json(404, { error: 'Submission not found' }) };
-  if (tribe.status !== 'pending') return { response: json(409, { error: 'This village has already been reviewed by your teacher.' }) };
+  if (!['pending', 'approved'].includes(tribe.status)) return { response: json(409, { error: 'This village cannot get pictures.' }) };
   return { tribe };
 }
 
@@ -155,7 +166,7 @@ async function villagerForPicture(supabase, user, id) {
   const { data: villager, error } = await supabase.from('characters').select('id, status, submitted_by').eq('id', String(id || '')).maybeSingle();
   if (error) return { response: json(500, { error: error.message }) };
   if (!villager || villager.submitted_by !== user) return { response: json(404, { error: 'Submission not found' }) };
-  if (villager.status !== 'pending') return { response: json(409, { error: 'Your villager has already been reviewed by your teacher.' }) };
+  if (!['pending', 'approved'].includes(villager.status)) return { response: json(409, { error: 'Your villager cannot get a picture.' }) };
   return { villager };
 }
 
@@ -297,6 +308,8 @@ async function saveVillage(supabase, user, body, charter, name, extra) {
     return json(200, { ok: true, id: existing.id });
   }
 
+  if (await hasVillage(supabase, user)) return json(409, { error: ONE_VILLAGE });
+
   const id = newId('tribe', name);
   // The code has to be unique; in the rare case of a clash, try another one.
   let insErr = null;
@@ -385,15 +398,18 @@ exports.handler = withSessionRenewal(async (event) => {
   if (event.httpMethod === 'GET') return handleGet(supabase, user);
   if (event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed' });
 
-  if (!(await submissionsOpen(supabase))) {
-    return json(403, { error: 'Submissions are closed right now.' });
-  }
-
   let body;
   try {
     body = JSON.parse(event.body || '{}');
   } catch {
     return json(400, { error: 'Invalid JSON' });
+  }
+
+  // Pictures can be added and taken away at any time, also when the teacher has closed the
+  // forms and after the village or villager has been approved. The texts follow the opening.
+  const pictureAction = body.action === 'add-image' || body.action === 'delete-image';
+  if (!pictureAction && !(await submissionsOpen(supabase))) {
+    return json(403, { error: 'Submissions are closed right now.' });
   }
 
   if (body.action === 'join') return handleJoin(supabase, user, body.code);

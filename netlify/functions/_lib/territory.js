@@ -124,6 +124,33 @@ function planClaim(grid, ids, villageId, direction, radius) {
   return { cx, cy, radius, cells };
 }
 
+// The land another village has taken in the same circle (its home region cannot be taken):
+// the village with the most such cells, and those cells. Returns null if there are too few.
+// owners is the grid of taken land, grid is what everybody sees (with the home regions).
+function contestedPlan(owners, grid, ids, villageId, direction, radius) {
+  const plan = planClaim(grid, ids, villageId, direction, radius);
+  if (!plan) return null;
+  const me = ids.indexOf(villageId) + 1;
+  const eachTarget = new Map();
+  eachInCircle(plan.cx, plan.cy, plan.radius, (x, y, i) => {
+    const owner = grid[i];
+    if (owner && owner !== me && owners[i] === owner) eachTarget.set(owner, [...(eachTarget.get(owner) || []), i]);
+  });
+  let best = null;
+  for (const [owner, cells] of eachTarget) if (!best || cells.length > best.cells.length) best = { id: ids[owner - 1], cells };
+  return best && best.cells.length >= MIN_NEW_CELLS ? { cx: plan.cx, cy: plan.cy, radius: plan.radius, target: best.id, cells: best.cells } : null;
+}
+
+// Gives cells that one village has taken to another village. Returns a new owner grid.
+function transferCells(owners, ids, cells, fromId, toId) {
+  const next = owners.slice();
+  const from = ids.indexOf(fromId) + 1;
+  const to = ids.indexOf(toId) + 1;
+  if (!from || !to) return next;
+  for (const i of cells) if (next[i] === from) next[i] = to;
+  return next;
+}
+
 const radiusFor = (shield) => (shield >= BIG_SHIELD ? CLAIM_RADIUS_BIG : CLAIM_RADIUS);
 
 // How much land each direction would give, for the buttons in the council.
@@ -166,6 +193,8 @@ module.exports = {
   settle,
   effectiveGrid,
   planClaim,
+  contestedPlan,
+  transferCells,
   radiusFor,
   previews,
   applyClaim,

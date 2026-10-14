@@ -5,6 +5,7 @@ const { translateToEnglish } = require('./_lib/translate');
 const presence = require('./_lib/presence');
 const { residentVillageIds } = require('./_lib/residents');
 const proposals = require('./_lib/proposals');
+const landclaims = require('./_lib/landclaims');
 
 // The council of a village. Whoever lives there can see it: the student who
 // started the village, the students who joined it with the group code, and the
@@ -151,6 +152,7 @@ const handler = withSessionRenewal(async (event) => {
         councils,
         villages: approved,
         notices: noticesFor(allCouncils || [], mine, names),
+        land_claims: await landclaims.viewFor(supabase, user, mine, names),
         translation: Boolean((process.env.DEEPL_API_KEY || '').trim()),
       });
     }

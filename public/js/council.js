@@ -1,4 +1,4 @@
-import { loadCouncils, saveCouncil, landPreview, landClaim, voteOnProposal } from './api.js';
+import { loadCouncils, saveCouncil, landPreview, landClaim, voteOnProposal, respondToClaim } from './api.js';
 import { escapeHtml } from './translate.js';
 
 // The "Council" tab on the Contribute page: the students who live in a village
@@ -15,6 +15,20 @@ const TEXT = {
     landSquares: (n) => `+${n} squares`,
     landTaken: (n) => `✓ Your village took ${n} squares of land.`,
     landProposed: '✓ The proposal has been sent. The villagers vote now.',
+    landFrom: (name, n) => `Ask ${name} (+${n})`,
+    claimsTitle: 'Land claims',
+    claimAwaiting: (from, to, n) => `${from} asks ${to} for ${n} squares of land.`,
+    claimAnswerBy: (when) => `The leader of the village answers before ${when}. No answer is a no.`,
+    claimGive: 'Give the land',
+    claimRefuse: 'No: culture battle',
+    claimBattle: (from, to, n) => `Culture battle: ${from} against ${to} for ${n} squares of land.`,
+    claimBattleEnds: (when) => `Everybody answers one set of tasks before ${when}. The village with the best average wins.`,
+    claimTook: (a, b, need) => `Played so far: ${a} of ${need} needed from the claiming village, ${b} of ${need} from the defending village.`,
+    claimPlay: 'Take part in the culture battle',
+    claimPlayed: 'You have taken part. Your score counts for your village.',
+    claimTransferred: (from, to, n) => `${from} got ${n} squares of land from ${to}.`,
+    claimKept: (from, to) => `${to} kept its land. ${from} got nothing.`,
+    claimFailed: 'Could not do that.',
     proposalTitle: 'The council votes',
     proposalSent: '✓ Sent to the villagers. They vote now.',
     voteIntro: (need, total) => `It passes when ${need} of ${total} villagers say yes.`,
@@ -63,6 +77,20 @@ const TEXT = {
     landSquares: (n) => `+${n} ruter`,
     landTaken: (n) => `✓ Landsbyen tok ${n} ruter land.`,
     landProposed: '✓ Forslaget er sendt. Innbyggerne stemmer nå.',
+    landFrom: (name, n) => `Spør ${name} (+${n})`,
+    claimsTitle: 'Landkrav',
+    claimAwaiting: (from, to, n) => `${from} ber ${to} om ${n} ruter land.`,
+    claimAnswerBy: (when) => `Lederen i landsbyen svarer innen ${when}. Ikke noe svar er et nei.`,
+    claimGive: 'Gi landet',
+    claimRefuse: 'Nei: kulturkamp',
+    claimBattle: (from, to, n) => `Kulturkamp: ${from} mot ${to} om ${n} ruter land.`,
+    claimBattleEnds: (when) => `Alle svarer på ett sett oppgaver innen ${when}. Landsbyen med best snitt vinner.`,
+    claimTook: (a, b, need) => `Spilt så langt: ${a} av ${need} som trengs fra landsbyen som krever, ${b} av ${need} fra landsbyen som forsvarer.`,
+    claimPlay: 'Delta i kulturkampen',
+    claimPlayed: 'Du har deltatt. Poengene dine teller for landsbyen.',
+    claimTransferred: (from, to, n) => `${from} fikk ${n} ruter land fra ${to}.`,
+    claimKept: (from, to) => `${to} beholdt landet sitt. ${from} fikk ingenting.`,
+    claimFailed: 'Kunne ikke gjøre det.',
     proposalTitle: 'Rådet stemmer',
     proposalSent: '✓ Sendt til innbyggerne. De stemmer nå.',
     voteIntro: (need, total) => `Det vedtas når ${need} av ${total} innbyggere sier ja.`,
@@ -178,6 +206,30 @@ function proposalHtml(p, t) {
     <div class="vote-row"><button type="button" class="choice-btn" data-vote="yes" data-pid="${p.id}">${t.yes}</button> <button type="button" class="small-btn" data-vote="no" data-pid="${p.id}">${t.no}</button> <span class="muted" data-vote-status role="status">${mine}</span></div></div>`;
 }
 
+// The land claims that concern the villages in this window: a question for the leader of the
+// village that is asked, the culture battle, and what was decided.
+function claimsHtml(claims, t, lang) {
+  if (!claims || !claims.length) return '';
+  const when = (iso) => new Date(iso).toLocaleString(lang === 'no' ? 'nb-NO' : 'en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  const items = claims
+    .map((c) => {
+      const from = h(c.claimant_name);
+      const to = h(c.target_name);
+      if (c.status === 'awaiting') {
+        return `<li class="claim"><strong>${t.claimAwaiting(from, to, c.squares)}</strong> <span class="muted">${t.claimAnswerBy(when(c.respond_by))}</span>
+          ${c.can_respond ? `<div class="vote-row"><button type="button" class="choice-btn" data-claim-answer="yes" data-claim="${c.id}">${t.claimGive}</button> <button type="button" class="small-btn" data-claim-answer="no" data-claim="${c.id}">${t.claimRefuse}</button></div>` : ''}</li>`;
+      }
+      if (c.status === 'battle') {
+        const play = c.my_side ? (c.played ? `<span class="muted">${t.claimPlayed}</span>` : `<button type="button" class="choice-btn" data-claim-play="${c.id}">${t.claimPlay}</button>`) : '';
+        return `<li class="claim"><strong>${t.claimBattle(from, to, c.squares)}</strong> <span class="muted">${t.claimBattleEnds(when(c.battle_ends))} ${t.claimTook(c.claimant_players, c.target_players, c.claimant_needed)}</span>${play ? `<div class="vote-row">${play}</div>` : ''}</li>`;
+      }
+      const text = c.status === 'transferred' ? t.claimTransferred(from, to, c.squares) : t.claimKept(from, to);
+      return `<li class="claim result ${h(c.status)}"><strong>${text}</strong> <span class="muted">${h(c.note || '')}</span></li>`;
+    })
+    .join('');
+  return `<section class="council-claims-box"><h3>${t.claimsTitle}</h3><ul class="claims">${items}</ul></section>`;
+}
+
 export async function renderCouncil(host, options) {
   const { lang, translation, tribeId = null, live = false } = options;
   clearInterval(host._councilTimer);
@@ -198,7 +250,7 @@ export async function renderCouncil(host, options) {
   const notices = !live && (data.notices || []).length
     ? `<section class="council-news"><h3>${t.messages}</h3><ul>${data.notices.map((n) => `<li>${(n.kind === 'enemy' ? t.enemy : t.ally)(h(n.from_name), h(n.to_name))}</li>`).join('')}</ul></section>`
     : '';
-  host.innerHTML = `${notices}<p class="charter-lede">${t.intro}</p>${data.councils.map((c) => card(c, data.villages, lang, t, data.translation, live)).join('')}`;
+  host.innerHTML = `${notices}${live ? '<div data-claims></div>' : ''}<p class="charter-lede">${t.intro}</p>${data.councils.map((c) => card(c, data.villages, lang, t, data.translation, live)).join('')}`;
 
   // The proposal of the leader, shown to everybody while the council meets. The votes are
   // fetched again every few seconds without redrawing the form (the leader may be typing).
@@ -207,7 +259,12 @@ export async function renderCouncil(host, options) {
       const council = data.councils.find((c) => c.tribe_id === box.dataset.proposal);
       box.innerHTML = proposalHtml(council && council.proposal, t);
     });
+  const drawClaims = () => {
+    const box = host.querySelector('[data-claims]');
+    if (box) box.innerHTML = claimsHtml(data.land_claims, t, lang);
+  };
   drawProposals();
+  drawClaims();
   if (live) {
     clearInterval(host._proposalTimer);
     const seen = new Map(data.councils.map((c) => [c.tribe_id, c.proposal ? c.proposal.status : null]));
@@ -223,7 +280,9 @@ export async function renderCouncil(host, options) {
           if (f.proposal && f.proposal.kind === 'land' && f.proposal.status === 'passed' && seen.get(c.tribe_id) === 'open') window.dispatchEvent(new Event('land-changed'));
           seen.set(c.tribe_id, f.proposal ? f.proposal.status : null);
         });
+        data.land_claims = fresh.land_claims;
         drawProposals();
+        drawClaims();
       } catch {
         // The next try will do.
       }
@@ -231,6 +290,30 @@ export async function renderCouncil(host, options) {
   }
   host._data = data;
   host._t = t;
+  host._lang = lang;
+  if (!host._claimBound) {
+    host._claimBound = true;
+    host.addEventListener('click', async (e) => {
+      const answer = e.target.closest('[data-claim-answer]');
+      const play = e.target.closest('[data-claim-play]');
+      if (play) {
+        window.dispatchEvent(new CustomEvent('culture-battle', { detail: { claimId: Number(play.dataset.claimPlay) } }));
+        return;
+      }
+      if (!answer) return;
+      answer.closest('.claim').querySelectorAll('button').forEach((b) => (b.disabled = true));
+      try {
+        await respondToClaim(Number(answer.dataset.claim), answer.dataset.claimAnswer === 'yes');
+        const fresh = await loadCouncils();
+        host._data.land_claims = fresh.land_claims;
+        window.dispatchEvent(new Event('land-changed'));
+      } catch (err) {
+        answer.closest('.claim').insertAdjacentHTML('beforeend', `<p class="error">${h(err.message || host._t.claimFailed)}</p>`);
+        return;
+      }
+      host.querySelector('[data-claims]').innerHTML = claimsHtml(host._data.land_claims, host._t, host._lang);
+    });
+  }
   if (!host._voteBound) {
     host._voteBound = true;
     host.addEventListener('click', async (e) => {
@@ -290,7 +373,7 @@ export async function renderCouncil(host, options) {
         return;
       }
       box.innerHTML = `${head}<p class="muted">${message || t.landLede(p.cells, p.radius)}</p><div class="land-dirs">${p.options
-        .map((o) => `<button type="button" class="small-btn" data-dir="${h(o.dir)}" ${o.cells < 6 ? 'disabled' : ''}>${h(o.label)} <span class="muted">${o.cells < 6 ? '–' : t.landSquares(o.cells)}</span></button>`)
+        .map((o) => `<span class="land-dir"><button type="button" class="small-btn" data-dir="${h(o.dir)}" ${o.cells < 6 ? 'disabled' : ''}>${h(o.label)} <span class="muted">${o.cells < 6 ? '–' : t.landSquares(o.cells)}</span></button>${o.contest ? ` <button type="button" class="small-btn contest" data-dir="${h(o.dir)}" data-mode="contest">${h(t.landFrom(o.contest.target_name, o.contest.cells))}</button>` : ''}</span>`)
         .join('')}</div>`;
     };
     box.addEventListener('click', async (e) => {
@@ -298,7 +381,7 @@ export async function renderCouncil(host, options) {
       if (!b) return;
       box.querySelectorAll('button').forEach((x) => (x.disabled = true));
       try {
-        const r = await landClaim(id, b.dataset.dir);
+        const r = await landClaim(id, b.dataset.dir, b.dataset.mode || 'free');
         window.dispatchEvent(new Event('land-changed'));
         await draw(t.landProposed);
       } catch (err) {

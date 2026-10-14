@@ -291,6 +291,7 @@ function renderWorld() {
         <button class="small-btn" data-world-run="${w.paused ? 'start' : 'pause'}">${w.paused ? 'Start the poison' : 'Pause the poison'}</button>
         <button class="small-btn" data-world-step>Step now</button>
         <button class="small-btn danger" data-world-reset>Reset (clear all poison)</button>
+        <button class="small-btn danger" data-land-reset>Reset the land (only home regions stay)</button>
       </div>
       <div class="world-controls">
         <label>Speed <select data-world-speed>${speeds}</select></label>
@@ -347,6 +348,16 @@ function renderWorld() {
       const r = await api('POST', { action: 'world-step' });
       await reload();
       flash(r.result && r.result.step ? `Step ${r.result.step}: ${r.result.percent}% poisoned.` : `Nothing happened: ${(r.result && r.result.skipped) || 'unknown'}.`);
+    } catch (err) {
+      if (err.message !== 'Logged out') flash(err.message, true);
+    }
+  });
+  app.querySelector('[data-land-reset]').addEventListener('click', async () => {
+    if (!confirm('Take all the land the villages have taken, so every village has only its home region? Open land claims are closed. This cannot be undone.')) return;
+    try {
+      await api('POST', { action: 'land-reset' });
+      await reload();
+      flash('The land is reset. Every village has only its home region.');
     } catch (err) {
       if (err.message !== 'Logged out') flash(err.message, true);
     }

@@ -747,3 +747,15 @@ main.wide { max-width: 1000px; }
 .proposal.result.passed { border-left-color: #7fb07f; }
 .proposal.result.rejected, .proposal.result.expired { border-left-color: var(--error); }
 .vote-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+
+.lexicon-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
+.lexicon-lang { display: flex; gap: 0.4rem; }
+
+/* Land claims between villages */
+.council-claims-box { margin: 0.6rem 0 1rem; }
+.claims { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+.claim { padding: 0.6rem 0.8rem; background: var(--panel); border-left: 3px solid var(--accent); border-radius: 6px; }
+.claim.result.transferred { border-left-color: #7fb07f; }
+.claim.result.kept { border-left-color: var(--error); }
+.land-dir { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; }
+.small-btn.contest { border-color: var(--error); }

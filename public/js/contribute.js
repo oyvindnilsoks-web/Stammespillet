@@ -36,6 +36,7 @@ const TEXT = {
     status: { pending: 'Waiting for teacher', approved: 'Approved', rejected: 'Not approved', archived: 'Archived' },
     kinds: { village: 'Village', shadow: 'Shadow village', villager: 'Villager' },
     edit: 'Edit',
+    haveVillage: (name, approved) => `You already have a village: <strong>${name}</strong>. Everybody is in one village only, the one you started or the one you joined. ${approved ? 'The teacher has approved it. Ask your teacher if something should change.' : 'You can change it until the teacher has approved it: press Edit under My submissions.'}`,
     haveVillager: (name, approved) => `You have already made your villager, <strong>${name}</strong>. ${approved ? 'The teacher has approved it, so it is part of the game now. Ask your teacher if something should change.' : 'You can change it until the teacher has approved it: press Edit under My submissions.'}`,
     tabVillage: 'Our village',
     tabVillager: 'My villager',
@@ -115,6 +116,7 @@ const TEXT = {
     status: { pending: 'Venter på læreren', approved: 'Godkjent', rejected: 'Ikke godkjent', archived: 'Arkivert' },
     kinds: { village: 'Landsby', shadow: 'Skyggelandsby', villager: 'Innbygger' },
     edit: 'Rediger',
+    haveVillage: (name, approved) => `Du har allerede en landsby: <strong>${name}</strong>. Alle er med i én landsby, den du startet eller den du ble med i. ${approved ? 'Læreren har godkjent den. Spør læreren hvis noe skal endres.' : 'Du kan endre den til læreren har godkjent den: trykk Rediger under Mine innsendinger.'}`,
     haveVillager: (name, approved) => `Du har allerede laget innbyggeren din, <strong>${name}</strong>. ${approved ? 'Læreren har godkjent den, så den er med i spillet nå. Spør læreren hvis noe skal endres.' : 'Du kan endre den til læreren har godkjent den: trykk Rediger under Mine innsendinger.'}`,
     tabVillage: 'Landsbyen vår',
     tabVillager: 'Min innbygger',
@@ -637,10 +639,18 @@ function renderForm() {
   const kind = tab;
   const f = form[kind];
   const t = L();
+  // One village for each student: no new form once there is one (made or joined).
+  const ownVillage = kind === 'village' && !editing.village ? data.mine.villages.find((v) => v.status === 'pending' || v.status === 'approved') : null;
+  if (ownVillage) {
+    root.querySelector('#contribute-form').innerHTML = `<p>${t.haveVillage(escapeHtml(ownVillage.name), ownVillage.status === 'approved')}</p>${renderPictures(ownVillage)}`;
+    wirePictures();
+    return;
+  }
   // One villager for each student: no new form once there is one.
   const own = kind === 'villager' && !editing.villager ? data.mine.villagers.find((v) => v.status === 'pending' || v.status === 'approved') : null;
   if (own) {
-    root.querySelector('#contribute-form').innerHTML = `<p>${t.haveVillager(escapeHtml(own.name), own.status === 'approved')}</p>`;
+    root.querySelector('#contribute-form').innerHTML = `<p>${t.haveVillager(escapeHtml(own.name), own.status === 'approved')}</p>${renderPortrait(own)}`;
+    wirePictures();
     return;
   }
   const isEditing = !!editing[kind];
@@ -692,6 +702,15 @@ function renderForm() {
 
   wireForm(kind);
   showDraftState();
+}
+
+// The buttons for pictures, also on the pages that show only a message and the pictures.
+function wirePictures() {
+  const formEl = root.querySelector('#contribute-form');
+  formEl.querySelector('#pic-add-btn')?.addEventListener('click', addPicture);
+  formEl.querySelectorAll('[data-delete-pic]').forEach((btn) => btn.addEventListener('click', () => deletePicture(btn.dataset.deletePic)));
+  formEl.querySelector('#portrait-add-btn')?.addEventListener('click', addPortrait);
+  formEl.querySelectorAll('[data-delete-portrait]').forEach((btn) => btn.addEventListener('click', () => deletePicture(btn.dataset.deletePortrait)));
 }
 
 function wireForm(kind) {
@@ -755,15 +774,17 @@ const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'];
 // The last part of the village form: pictures of famous places and other
 // things. A picture belongs to a village that has been sent, so before the
 // first send there is only a note.
-function renderPictures() {
+const ownVillageOf = () => data.mine.villages.find((v) => v.status === 'pending' || v.status === 'approved') || null;
+const ownVillagerOf = () => data.mine.villagers.find((v) => v.status === 'pending' || v.status === 'approved') || null;
+
+function renderPictures(sub = editing.village) {
   const t = L();
-  const number = ROMAN[CHARTERS[form.village.type].sections.length] || '';
+  const number = ROMAN[CHARTERS[(form.village || { type: 'village' }).type].sections.length] || '';
   const head = `<div class="charter-head"><span class="charter-num">${number}</span><div><h3>${t.picturesTitle}</h3></div></div>`;
-  const sub = editing.village;
   if (!sub) return `<section class="charter-section pictures">${head}<p class="muted">${t.picturesFirst}</p></section>`;
 
   const live = data.mine.villages.find((v) => v.id === sub.id) || sub;
-  const canEdit = live.status === 'pending' && data.open;
+  const canEdit = live.status === 'pending' || live.status === 'approved';
   const pictures = (data.mine.media || []).filter((m) => m.tribe_id === sub.id && m.kind === 'image');
   const grid = pictures.length
     ? `<div class="pic-grid">${pictures
@@ -836,7 +857,7 @@ async function addPicture() {
   statusEl.textContent = L().picAdding;
   try {
     const { mime, data: encoded } = await prepareImage(file);
-    await addVillageImage({ tribe_id: editing.village.id, caption: root.querySelector('#pic-caption').value.trim(), mime, data: encoded });
+    await addVillageImage({ tribe_id: (editing.village || ownVillageOf()).id, caption: root.querySelector('#pic-caption').value.trim(), mime, data: encoded });
     data = await loadSubmissions();
     renderPage();
     root.querySelector('.pictures')?.scrollIntoView({ block: 'center' });
@@ -881,13 +902,20 @@ function renderVillagerExtras() {
   ).join('');
   const figureSection = `<section class="charter-section figures">${head(0, t.figureTitle)}<p class="charter-lede">${t.figureHelp}</p><div class="figure-grid">${figures}</div></section>`;
 
-  const sub = editing.villager;
+  return figureSection + renderPortrait(editing.villager);
+}
+
+// The drawing of a villager: it can be changed at any time, also after the teacher has approved.
+function renderPortrait(sub) {
+  const t = L();
+  const head = (offset, title) =>
+    `<div class="charter-head"><span class="charter-num">${ROMAN[CHARTERS.villager.sections.length + offset] || ''}</span><div><h3>${title}</h3></div></div>`;
   let body;
   if (!sub) {
     body = `<p class="muted">${t.portraitFirst}</p>`;
   } else {
     const live = data.mine.villagers.find((v) => v.id === sub.id) || sub;
-    const canEdit = live.status === 'pending' && data.open;
+    const canEdit = live.status === 'pending' || live.status === 'approved';
     const drawing = (data.mine.media || []).find((m) => m.character_id === sub.id);
     const picture = drawing
       ? `<figure class="pic portrait"><img src="${escapeHtml(mediaUrl(drawing.storage_path))}" alt="" loading="lazy">${
@@ -903,8 +931,7 @@ function renderVillagerExtras() {
       : `<p class="muted">${t.portraitLocked}</p>`;
     body = `<p class="charter-lede">${t.portraitHelp}</p>${picture}${add}`;
   }
-  const drawingSection = `<section class="charter-section portrait-section">${head(1, t.portraitTitle)}${body}</section>`;
-  return figureSection + drawingSection;
+  return `<section class="charter-section portrait-section">${head(1, t.portraitTitle)}${body}</section>`;
 }
 
 async function addPortrait() {
@@ -919,7 +946,7 @@ async function addPortrait() {
   statusEl.textContent = L().picAdding;
   try {
     const { mime, data: encoded } = await prepareImage(file);
-    await addVillagerImage({ character_id: editing.villager.id, mime, data: encoded });
+    await addVillagerImage({ character_id: (editing.villager || ownVillagerOf()).id, mime, data: encoded });
     data = await loadSubmissions();
     renderPage();
     root.querySelector('.portrait-section')?.scrollIntoView({ block: 'center' });

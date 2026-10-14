@@ -68,4 +68,35 @@ async function translateToEnglish(charter) {
   return out;
 }
 
-module.exports = { translateToEnglish, SKIP_KEYS };
+// A list of English texts to Norwegian (bokmål), in the same order. Used for the Clan
+// Lexicon, which is written in English. Throws if anything fails.
+async function translateToNorwegian(texts) {
+  const key = (process.env.DEEPL_API_KEY || '').trim();
+  if (!key) throw failure('no_key');
+  const out = [];
+  for (let i = 0; i < texts.length; i += CHUNK) {
+    const slice = texts.slice(i, i + CHUNK);
+    let res;
+    try {
+      res = await fetch(endpointFor(key), {
+        method: 'POST',
+        headers: { Authorization: `DeepL-Auth-Key ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: slice, source_lang: 'EN', target_lang: 'NB', preserve_formatting: true }),
+        signal: AbortSignal.timeout(20000),
+      });
+    } catch (e) {
+      throw failure(e && e.name === 'TimeoutError' ? 'timeout' : 'network');
+    }
+    if (!res.ok) throw failure(`deepl_${res.status}`);
+    const json = await res.json().catch(() => null);
+    const list = json && json.translations;
+    if (!Array.isArray(list) || list.length !== slice.length) throw failure('deepl_shape');
+    for (const item of list) {
+      if (!item || typeof item.text !== 'string') throw failure('deepl_shape');
+      out.push(item.text);
+    }
+  }
+  return out;
+}
+
+module.exports = { translateToEnglish, translateToNorwegian, SKIP_KEYS };

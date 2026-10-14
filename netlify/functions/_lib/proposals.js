@@ -42,7 +42,7 @@ async function apply(supabase, proposal, now) {
   }
   // Required here: the world needs this file when it takes land, and the other way round.
   const world = require('./world');
-  return world.claimNow(supabase, proposal.proposed_by, proposal.tribe_id, proposal.payload.direction, now);
+  return world.claimNow(supabase, proposal.proposed_by, proposal.tribe_id, proposal.payload.direction, now, proposal.payload.mode || 'free');
 }
 
 // Closes a proposal if the votes or the time say so. Returns the proposal as it is now.

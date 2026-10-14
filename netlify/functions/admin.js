@@ -416,6 +416,14 @@ async function worldReset(supabase) {
   return json(200, { ok: true });
 }
 
+// Every village gets only its home region back; open land claims are closed.
+async function landReset(supabase) {
+  await worldLib.saveState(supabase, { owners: '', owner_ids: [], anchors: {} });
+  const { error } = await supabase.from('land_claims').update({ status: 'kept', note: 'The teacher reset the land.', resolved_at: new Date().toISOString() }).in('status', ['awaiting', 'battle']);
+  if (error) return json(500, { error: error.message });
+  return json(200, { ok: true });
+}
+
 async function setSetting(supabase, { key, value }) {
   if (key !== 'submissions_open' || typeof value !== 'boolean') return json(400, { error: 'Invalid setting' });
   const { error } = await supabase.from('settings').upsert({ key, value });
@@ -436,6 +444,7 @@ const ACTIONS = {
   'set-artifact': setArtifact,
   'delete-artifact': deleteArtifact,
   'world-reset': worldReset,
+  'land-reset': landReset,
   delete: deleteRow,
   'upload-url': uploadUrl,
   'add-media': addMedia,

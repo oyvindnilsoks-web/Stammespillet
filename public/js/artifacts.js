@@ -71,7 +71,6 @@ export async function renderArtifacts(host, { lang }) {
     return;
   }
   const names = data.ladder ? data.ladder.names : [];
-  const active = data.mine.filter((a) => a.status !== 'rejected').length;
   const rows = data.mine.length
     ? data.mine
         .map(
@@ -82,10 +81,7 @@ export async function renderArtifacts(host, { lang }) {
         )
         .join('')
     : `<li class="muted">${t.none}</li>`;
-  const form =
-    active >= data.max_own
-      ? `<p class="muted">${t.full(data.max_own)}</p>`
-      : `<div class="artifact-form">
+  const form = `<div class="artifact-form">
           <label class="charter-field"><span class="field-label">${t.name}</span><input type="text" id="artifact-name" maxlength="40"></label>
           <label class="charter-field"><span class="field-label">${t.description}</span><textarea id="artifact-description" rows="3" maxlength="200"></textarea></label>
           <label class="charter-field"><span class="field-label">${t.photo}</span><input type="file" id="artifact-photo" accept="image/*"></label>
@@ -108,8 +104,6 @@ export async function renderArtifacts(host, { lang }) {
       }
     })
   );
-  if (active >= data.max_own) return;
-
   const status = host.querySelector('#artifact-status');
   const send = host.querySelector('#artifact-send');
   const strength = host.querySelector('#artifact-strength');

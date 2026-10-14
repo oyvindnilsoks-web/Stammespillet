@@ -14,7 +14,6 @@ const battle = require('./_lib/battle');
 const BUCKET = 'media';
 const MAX_BYTES = 700 * 1024;
 const MAX_SIDE = 512;
-const MAX_OWN = 3; // artifacts one student can have (not counting those that were turned down)
 const MAX_NAME = 40;
 const MAX_DESCRIPTION = 200;
 
@@ -70,7 +69,7 @@ exports.handler = withSessionRenewal(async (event) => {
           : { id: a.id, locked: true, rank_required: a.rank_required }
       );
       const mine = [...own.data].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))).map(({ created_at, ...rest }) => rest);
-      return json(200, { mine, backpack, rank, max_own: MAX_OWN, ladder: { names: NAMES, thresholds: THRESHOLDS } });
+      return json(200, { mine, backpack, rank, ladder: { names: NAMES, thresholds: THRESHOLDS } });
     }
 
     if (event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed' });
@@ -90,12 +89,6 @@ exports.handler = withSessionRenewal(async (event) => {
       const size = pngSize(buf);
       if (!size || !size.width || !size.height) return json(400, { error: 'This is not a scanned picture.' });
       if (size.width > MAX_SIDE || size.height > MAX_SIDE) return json(400, { error: 'The picture is too big.' });
-
-      const { data: own, error: ownErr } = await supabase.from('artifacts').select('id, status').eq('owner', user);
-      if (ownErr) throw new Error(ownErr.message);
-      if (own.filter((a) => a.status !== 'rejected').length >= MAX_OWN) {
-        return json(409, { error: `You can have ${MAX_OWN} artifacts. Take one away first.` });
-      }
 
       const path = `artifacts/${crypto.randomUUID()}.png`;
       const { error: uploadErr } = await supabase.storage.from(BUCKET).upload(path, buf, { contentType: 'image/png', upsert: false });
@@ -132,4 +125,3 @@ exports.handler = withSessionRenewal(async (event) => {
 });
 
 exports.pngSize = pngSize;
-exports.MAX_OWN = MAX_OWN;

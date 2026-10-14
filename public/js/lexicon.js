@@ -1,5 +1,6 @@
 import { imageUrl, mediaUrl } from './content.js';
 import { escapeHtml } from './translate.js';
+import { loadLexiconNorwegian } from './api.js';
 
 function imgTag(path, alt, cls) {
   const url = imageUrl(path);
@@ -40,45 +41,83 @@ const paragraphs = (text) =>
     .map((p) => `<p>${escapeHtml(p)}</p>`)
     .join('');
 
-export function renderLexicon(container, { tribes, characters, media = [], lexicon = [] }) {
+const LABELS = {
+  en: {
+    title: 'Clan Lexicon',
+    none: 'No villages have been added yet.',
+    history: 'The History of the World',
+    villages: 'The villages and their people',
+    villagers: 'Villagers',
+    songs: 'Songs',
+    pictures: 'Pictures and more',
+    translating: 'Translating…',
+    failed: 'The translation is not available right now.',
+  },
+  no: {
+    title: 'Klanleksikon',
+    none: 'Ingen landsbyer er lagt til ennå.',
+    history: 'Verdens historie',
+    villages: 'Landsbyene og folkene deres',
+    villagers: 'Innbyggere',
+    songs: 'Sanger',
+    pictures: 'Bilder og mer',
+    translating: 'Oversetter …',
+    failed: 'Oversettelsen er ikke tilgjengelig akkurat nå.',
+  },
+};
+
+// The Clan Lexicon. The texts are written in English; the Norsk button shows them in
+// Norwegian (translated by the server, and saved there).
+export function renderLexicon(container, { tribes, characters, media = [], lexicon = [] }, lang = 'en', norwegian = null) {
+  const t = LABELS[lang];
+  const switcher = `<div class="lexicon-lang" role="group" aria-label="Language">
+      <button type="button" class="lore-tab ${lang === 'no' ? 'active' : ''}" data-lex-lang="no" aria-pressed="${lang === 'no'}">Norsk</button>
+      <button type="button" class="lore-tab ${lang === 'en' ? 'active' : ''}" data-lex-lang="en" aria-pressed="${lang === 'en'}">English</button>
+    </div>`;
+
   if (tribes.size === 0) {
-    container.innerHTML = '<h2>Clan Lexicon</h2><p>No villages have been added yet.</p>';
+    container.innerHTML = `<h2>${t.title}</h2><p>${t.none}</p>`;
     return;
   }
 
+  const textOf = (entry) => {
+    if (lang !== 'no' || !norwegian) return entry;
+    const no = norwegian.get(entry.id);
+    return no && no.body ? { ...entry, title: no.title || entry.title, body: no.body } : entry;
+  };
   const byKind = (kind) => lexicon.filter((e) => e.kind === kind).sort((a, b) => a.position - b.position);
-  const villageText = new Map(byKind('village').map((e) => [e.ref_id, e]));
-  const bioText = new Map(byKind('bio').map((e) => [e.ref_id, e]));
-  const history = byKind('history');
+  const villageText = new Map(byKind('village').map((e) => [e.ref_id, textOf(e)]));
+  const bioText = new Map(byKind('bio').map((e) => [e.ref_id, textOf(e)]));
+  const history = byKind('history').map(textOf);
 
   const historySection = history.length
     ? `<section class="world-history">
-        <h3>The History of the World</h3>
+        <h3>${t.history}</h3>
         ${history.map((c, i) => `<article class="history-chapter"><h4>${i + 1}. ${escapeHtml(c.title)}</h4>${paragraphs(c.body)}</article>`).join('')}
       </section>`
     : '';
 
   const sections = [...tribes.values()]
-    .map((t) => {
-      const members = [...characters.values()].filter((c) => c.tribe_id === t.id);
-      const own = media.filter((m) => m.tribe_id === t.id);
+    .map((tribe) => {
+      const members = [...characters.values()].filter((c) => c.tribe_id === tribe.id);
+      const own = media.filter((m) => m.tribe_id === tribe.id);
       const shield = own.find((m) => m.kind === 'shield' && (m.mime_type || '').startsWith('image/'));
       const songs = own.filter((m) => m.kind === 'song');
       const pictures = own.filter((m) => m !== shield && m.kind !== 'song');
-      const entry = villageText.get(t.id);
+      const entry = villageText.get(tribe.id);
 
       return `
         <article class="tribe-entry">
-          ${imgTag(t.image, t.name, 'lexicon-image')}
+          ${imgTag(tribe.image, tribe.name, 'lexicon-image')}
           <div class="tribe-heading">
-            ${shield ? `<img class="tribe-shield" src="${escapeHtml(mediaUrl(shield.storage_path))}" alt="${escapeHtml(shield.title || `${t.name} shield`)}">` : ''}
-            <h3>${escapeHtml(t.name)}</h3>
+            ${shield ? `<img class="tribe-shield" src="${escapeHtml(mediaUrl(shield.storage_path))}" alt="${escapeHtml(shield.title || `${tribe.name} shield`)}">` : ''}
+            <h3>${escapeHtml(tribe.name)}</h3>
           </div>
-          <p class="muted">${escapeHtml(t.territory?.region_name || '')}</p>
+          <p class="muted">${escapeHtml(tribe.territory?.region_name || '')}</p>
           ${entry ? paragraphs(entry.body) : ''}
           ${
             members.length
-              ? `<div class="tribe-members"><h4>Villagers</h4>${members
+              ? `<div class="tribe-members"><h4>${t.villagers}</h4>${members
                   .map((m) => {
                     const bio = bioText.get(m.id);
                     return bio
@@ -88,11 +127,30 @@ export function renderLexicon(container, { tribes, characters, media = [], lexic
                   .join('')}</div>`
               : ''
           }
-          ${mediaSection('Songs', songs)}
-          ${mediaSection('Pictures and more', pictures)}
+          ${mediaSection(t.songs, songs)}
+          ${mediaSection(t.pictures, pictures)}
         </article>`;
     })
     .join('');
 
-  container.innerHTML = `<h2>Clan Lexicon</h2>${historySection}<h3 class="lexicon-villages">The villages and their people</h3><div class="lexicon-grid">${sections}</div>`;
+  container.innerHTML = `<div class="lexicon-head"><h2>${t.title}</h2>${switcher}</div><p class="muted" id="lexicon-status" role="status"></p>${historySection}<h3 class="lexicon-villages">${t.villages}</h3><div class="lexicon-grid">${sections}</div>`;
+
+  container.querySelectorAll('[data-lex-lang]').forEach((button) =>
+    button.addEventListener('click', async () => {
+      const wanted = button.dataset.lexLang;
+      if (wanted === lang) return;
+      if (wanted === 'en') return renderLexicon(container, { tribes, characters, media, lexicon }, 'en', norwegian);
+      // Norwegian: fetched (the server translates a few texts at a time) and kept for later.
+      const status = container.querySelector('#lexicon-status');
+      status.textContent = LABELS.no.translating;
+      try {
+        let result = await loadLexiconNorwegian();
+        while (result.pending > 0) result = await loadLexiconNorwegian();
+        const map = new Map(result.entries.map((e) => [e.id, e]));
+        renderLexicon(container, { tribes, characters, media, lexicon }, 'no', map);
+      } catch {
+        status.textContent = LABELS.no.failed;
+      }
+    })
+  );
 }
