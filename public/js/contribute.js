@@ -36,6 +36,7 @@ const TEXT = {
     status: { pending: 'Waiting for teacher', approved: 'Approved', rejected: 'Not approved', archived: 'Archived' },
     kinds: { village: 'Village', shadow: 'Shadow village', villager: 'Villager' },
     edit: 'Edit',
+    haveVillager: (name, approved) => `You have already made your villager, <strong>${name}</strong>. ${approved ? 'The teacher has approved it, so it is part of the game now. Ask your teacher if something should change.' : 'You can change it until the teacher has approved it: press Edit under My submissions.'}`,
     tabVillage: 'Our village',
     tabVillager: 'My villager',
     tabCouncil: 'Council',
@@ -114,6 +115,7 @@ const TEXT = {
     status: { pending: 'Venter på læreren', approved: 'Godkjent', rejected: 'Ikke godkjent', archived: 'Arkivert' },
     kinds: { village: 'Landsby', shadow: 'Skyggelandsby', villager: 'Innbygger' },
     edit: 'Rediger',
+    haveVillager: (name, approved) => `Du har allerede laget innbyggeren din, <strong>${name}</strong>. ${approved ? 'Læreren har godkjent den, så den er med i spillet nå. Spør læreren hvis noe skal endres.' : 'Du kan endre den til læreren har godkjent den: trykk Rediger under Mine innsendinger.'}`,
     tabVillage: 'Landsbyen vår',
     tabVillager: 'Min innbygger',
     tabCouncil: 'Rådet',
@@ -635,6 +637,12 @@ function renderForm() {
   const kind = tab;
   const f = form[kind];
   const t = L();
+  // One villager for each student: no new form once there is one.
+  const own = kind === 'villager' && !editing.villager ? data.mine.villagers.find((v) => v.status === 'pending' || v.status === 'approved') : null;
+  if (own) {
+    root.querySelector('#contribute-form').innerHTML = `<p>${t.haveVillager(escapeHtml(own.name), own.status === 'approved')}</p>`;
+    return;
+  }
   const isEditing = !!editing[kind];
   const sendLabel = isEditing ? t.save : t.send;
 

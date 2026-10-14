@@ -362,6 +362,12 @@ async function saveVillager(supabase, user, body, charter, name, extra) {
     return json(200, { ok: true, id: existing.id });
   }
 
+  // One villager for each student: a second one cannot be made, only the first one changed
+  // (while the teacher has not approved it). A villager the teacher turned down does not count.
+  const { data: mine, error: mineErr } = await supabase.from('characters').select('id').eq('submitted_by', user).in('status', ['pending', 'approved']).limit(1);
+  if (mineErr) return json(500, { error: mineErr.message });
+  if (mine && mine.length) return json(409, { error: 'You have already made your villager. You can change it until your teacher has approved it.' });
+
   const id = newId('char', name);
   const { error: insErr } = await supabase
     .from('characters')
