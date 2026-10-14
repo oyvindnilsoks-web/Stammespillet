@@ -10,6 +10,7 @@
 
 const crypto = require('crypto');
 const { validFigure } = require('./figures');
+const testbot = require('./testbot');
 
 const FRESH_MS = 30 * 1000;
 const WORLD_FRESH_MS = 10 * 1000; // someone on the map who has not been heard from for ten seconds has gone
@@ -131,6 +132,7 @@ async function onlineList(supabase, user, now = new Date()) {
   if (err) throw new Error(err.message);
   const firstName = new Map();
   for (const c of people.data) if (!firstName.has(c.submitted_by)) firstName.set(c.submitted_by, c.name);
+  for (const id of ids) if (testbot.isBot(id)) firstName.set(id, testbot.botName(id));
   const villageName = new Map(tribes.data.map((t) => [t.id, t.name]));
   const spotOf = new Map(spots.data.map((s) => [s.user_id, s]));
 
@@ -210,13 +212,17 @@ async function worldState(supabase, user, now = new Date()) {
   if (namesErr) throw new Error(namesErr.message);
   const first = new Map();
   for (const c of people) if (!first.has(c.submitted_by)) first.set(c.submitted_by, c);
-  return others.map((r) => ({
-    pid: pidOf(r.user_id),
-    name: (first.get(r.user_id) || {}).name || 'A student',
-    look: r.look === null || r.look === undefined ? validFigure((first.get(r.user_id) || {}).sprite) : r.look,
-    fx: r.fx,
-    fy: r.fy,
-  }));
+  return others.map((r) => {
+    // The teacher's test student walks round its spot.
+    const spot = testbot.isBot(r.user_id) ? testbot.botPosition(r, now) : { fx: r.fx, fy: r.fy };
+    return {
+      pid: pidOf(r.user_id),
+      name: testbot.isBot(r.user_id) ? testbot.botName(r.user_id) : (first.get(r.user_id) || {}).name || 'A student',
+      look: r.look === null || r.look === undefined ? validFigure((first.get(r.user_id) || {}).sprite) : r.look,
+      fx: spot.fx,
+      fy: spot.fy,
+    };
+  });
 }
 
 // The student a code stands for, if they are on the map right now.
@@ -234,6 +240,7 @@ async function villagerNames(supabase, users) {
   if (error) throw new Error(error.message);
   const names = new Map();
   for (const c of data) if (!names.has(c.submitted_by)) names.set(c.submitted_by, c.name);
+  for (const u of users) if (testbot.isBot(u)) names.set(u, testbot.botName(u));
   return names;
 }
 

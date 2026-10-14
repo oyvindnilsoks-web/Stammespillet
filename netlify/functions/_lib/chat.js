@@ -71,6 +71,8 @@ const REPLIES = {
   bye2: [],
 };
 
+const { isBot } = require('./testbot');
+
 const FRESH_MS = 20 * 60 * 1000; // a talk that is older than this starts over
 const NOTICE_MS = 2 * 60 * 1000; // an unanswered sentence is shown to the other student for this long
 const KEEP_MS = 60 * 60 * 1000;
@@ -83,6 +85,12 @@ async function say(supabase, from, to, phrase, now = new Date()) {
   if (from === to) return { ok: false, reason: 'not yourself' };
   const { error } = await supabase.from('chat_messages').insert({ from_user: from, to_user: to, phrase });
   if (error) throw new Error(error.message);
+  // The teacher's test student answers with the first of the ready-made answers.
+  const answer = isBot(to) && REPLIES[phrase] && REPLIES[phrase][0];
+  if (answer) {
+    const reply = await supabase.from('chat_messages').insert({ from_user: to, to_user: from, phrase: answer });
+    if (reply.error) throw new Error(reply.error.message);
+  }
   await supabase.from('chat_messages').delete().lt('created_at', new Date(now - KEEP_MS).toISOString());
   return { ok: true };
 }

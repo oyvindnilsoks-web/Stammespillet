@@ -1,4 +1,5 @@
 const tasks = require('./tasks');
+const { isBot, botName } = require('./testbot');
 const { rankOf } = require('./ladder');
 
 // Glossary battles. A student starts a battle and plays it at once. It waits for
@@ -36,6 +37,7 @@ async function namesOf(supabase, users) {
   const { data, error } = await supabase.from('characters').select('name, submitted_by').in('submitted_by', unique).eq('status', 'approved');
   if (error) throw new Error(error.message);
   for (const row of data) if (!names.has(row.submitted_by)) names.set(row.submitted_by, row.name);
+  for (const u of unique) if (isBot(u)) names.set(u, botName(u));
   return names;
 }
 
@@ -165,7 +167,7 @@ async function challengePlayer(supabase, user, target, words, now = new Date()) 
   if (set.length < QUESTIONS) return { ok: false, status: 409, error: 'There are not enough words for a battle.' };
   const { data, error } = await supabase
     .from('duels')
-    .insert({ challenger: user, opponent: target, direct: true, questions: set, a_started_at: now.toISOString(), created_at: now.toISOString() })
+    .insert({ challenger: user, opponent: target, direct: true, questions: set, a_started_at: now.toISOString(), created_at: now.toISOString(), ...(isBot(target) ? { b_started_at: now.toISOString() } : {}) })
     .select('id')
     .single();
   if (error) throw new Error(error.message);
@@ -235,6 +237,12 @@ async function submit(supabase, user, id, answers, now = new Date()) {
   if (!isA && !isB) return { ok: false, status: 403, error: 'This is not your battle.' };
   if ((isA && d.a_score !== null) || (isB && d.b_score !== null)) return { ok: false, status: 409, error: 'You have already handed in this battle.' };
   if (!Array.isArray(answers) || answers.length !== d.questions.length) return { ok: false, status: 400, error: 'Answer every question.' };
+
+  // The teacher's test student has already played: three right out of five, in twenty seconds.
+  if (isA && isBot(d.opponent) && d.b_score === null) {
+    d.b_score = Math.min(3, d.questions.length);
+    d.b_ms = 20000;
+  }
 
   const score = d.questions.filter((q, i) => tasks.isCorrect(answers[i], q.answer)).length;
   const ms = Math.min(MAX_MS, Math.max(0, now - new Date(isA ? d.a_started_at : d.b_started_at)));
