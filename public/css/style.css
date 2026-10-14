@@ -730,3 +730,13 @@ main.wide { max-width: 1000px; }
 
 /* Land the council can take */
 .land-dirs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.4rem; }
+
+/* Clan Lexicon: the history of the world and the biographies */
+.world-history { max-width: 46rem; margin: 1rem 0 2rem; }
+.history-chapter { margin: 1.5rem 0; }
+.history-chapter h4 { margin: 0 0 0.4rem; color: var(--accent); }
+.history-chapter p, .tribe-entry > p { line-height: 1.55; }
+.lexicon-villages { margin-top: 2rem; }
+.villager-bio { margin: 0.5rem 0; padding: 0.4rem 0.7rem; background: var(--panel); border-radius: 8px; }
+.villager-bio summary { cursor: pointer; }
+.villager-bio p { line-height: 1.55; margin: 0.6rem 0 0; }

@@ -31,11 +31,32 @@ function mediaSection(title, items) {
   return `<div class="media-group"><h4>${title}</h4>${items.map(renderMediaItem).join('')}</div>`;
 }
 
-export function renderLexicon(container, { tribes, characters, media = [] }) {
+// Text written for the class to read, in paragraphs.
+const paragraphs = (text) =>
+  String(text || '')
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => `<p>${escapeHtml(p)}</p>`)
+    .join('');
+
+export function renderLexicon(container, { tribes, characters, media = [], lexicon = [] }) {
   if (tribes.size === 0) {
     container.innerHTML = '<h2>Clan Lexicon</h2><p>No villages have been added yet.</p>';
     return;
   }
+
+  const byKind = (kind) => lexicon.filter((e) => e.kind === kind).sort((a, b) => a.position - b.position);
+  const villageText = new Map(byKind('village').map((e) => [e.ref_id, e]));
+  const bioText = new Map(byKind('bio').map((e) => [e.ref_id, e]));
+  const history = byKind('history');
+
+  const historySection = history.length
+    ? `<section class="world-history">
+        <h3>The History of the World</h3>
+        ${history.map((c, i) => `<article class="history-chapter"><h4>${i + 1}. ${escapeHtml(c.title)}</h4>${paragraphs(c.body)}</article>`).join('')}
+      </section>`
+    : '';
 
   const sections = [...tribes.values()]
     .map((t) => {
@@ -44,9 +65,7 @@ export function renderLexicon(container, { tribes, characters, media = [] }) {
       const shield = own.find((m) => m.kind === 'shield' && (m.mime_type || '').startsWith('image/'));
       const songs = own.filter((m) => m.kind === 'song');
       const pictures = own.filter((m) => m !== shield && m.kind !== 'song');
-      const relations = Object.entries(t.relations || {})
-        .map(([otherId, rel]) => `${escapeHtml(tribes.get(otherId)?.name || otherId)}: ${escapeHtml(rel)}`)
-        .join(', ');
+      const entry = villageText.get(t.id);
 
       return `
         <article class="tribe-entry">
@@ -56,12 +75,17 @@ export function renderLexicon(container, { tribes, characters, media = [] }) {
             <h3>${escapeHtml(t.name)}</h3>
           </div>
           <p class="muted">${escapeHtml(t.territory?.region_name || '')}</p>
-          <p><strong>Resource:</strong> ${escapeHtml(t.resource || '–')}</p>
-          <p><strong>Culture:</strong> ${escapeHtml(t.culture || '–')}</p>
-          ${relations ? `<p><strong>Relations to other villages:</strong> ${relations}</p>` : ''}
+          ${entry ? paragraphs(entry.body) : ''}
           ${
             members.length
-              ? `<div class="tribe-members"><strong>Villagers:</strong> ${members.map((m) => escapeHtml(m.name)).join(', ')}</div>`
+              ? `<div class="tribe-members"><h4>Villagers</h4>${members
+                  .map((m) => {
+                    const bio = bioText.get(m.id);
+                    return bio
+                      ? `<details class="villager-bio"><summary><strong>${escapeHtml(m.name)}</strong>${m.role ? ` <span class="muted">· ${escapeHtml(m.role)}</span>` : ''}</summary>${paragraphs(bio.body)}</details>`
+                      : `<p><strong>${escapeHtml(m.name)}</strong></p>`;
+                  })
+                  .join('')}</div>`
               : ''
           }
           ${mediaSection('Songs', songs)}
@@ -70,5 +94,5 @@ export function renderLexicon(container, { tribes, characters, media = [] }) {
     })
     .join('');
 
-  container.innerHTML = `<h2>Clan Lexicon</h2><div class="lexicon-grid">${sections}</div>`;
+  container.innerHTML = `<h2>Clan Lexicon</h2>${historySection}<h3 class="lexicon-villages">The villages and their people</h3><div class="lexicon-grid">${sections}</div>`;
 }

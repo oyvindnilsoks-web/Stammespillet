@@ -65,12 +65,13 @@ exports.handler = withSessionRenewal(async (event) => {
 
   try {
     const supabase = getSupabaseAdmin();
-    const [tribes, characters, scenes] = await Promise.all([
+    const [tribes, characters, scenes, lexicon] = await Promise.all([
       supabase.from('tribes').select(TRIBE_COLUMNS).eq('status', 'approved').order('name'),
       supabase.from('characters').select(CHARACTER_COLUMNS).eq('status', 'approved').order('name'),
       supabase.from('scenes').select('*'),
+      supabase.from('lexicon_entries').select('id, kind, ref_id, title, body, position, updated_at').order('position'),
     ]);
-    const err = tribes.error || characters.error || scenes.error;
+    const err = tribes.error || characters.error || scenes.error || lexicon.error;
     if (err) throw new Error(err.message);
 
     // Media is only shown for approved villages and villagers.
@@ -101,6 +102,7 @@ exports.handler = withSessionRenewal(async (event) => {
       tribes: tribes.data.map(publicRow),
       characters: characters.data.map(publicRow),
       scenes: scenes.data,
+      lexicon: lexicon.data,
       media,
     });
   } catch (e) {
